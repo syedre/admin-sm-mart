@@ -2,6 +2,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../app.dart';
+import 'admin_features.dart';
 
 class AdminShell extends StatefulWidget {
   const AdminShell({super.key});
@@ -45,11 +46,11 @@ class _AdminShellState extends State<AdminShell> {
         index: _index,
         children: const [
           _OverviewPage(),
-          _FeaturePlaceholder(title: 'Catalogue', detail: 'Products, categories, images and visibility management.'),
-          _FeaturePlaceholder(title: 'Orders', detail: 'Customer orders, date filters, contact details and status transitions.'),
-          _FeaturePlaceholder(title: 'Pack sizes', detail: 'Variant pricing and shared physical inventory.'),
-          _FeaturePlaceholder(title: 'Delivery', detail: 'Delivery partner assignments and live sessions. Firebase Admin credentials remain server-side.'),
-          _FeaturePlaceholder(title: 'Shop settings', detail: 'Shop open/closed state, online-order availability and customer closure message.'),
+          CataloguePage(),
+          OrdersPage(),
+          PacksPage(),
+          DeliveryPage(),
+          ShopPage(),
         ],
       ),
       bottomNavigationBar: NavigationBar(
@@ -148,31 +149,6 @@ class _OverviewPageState extends State<_OverviewPage> {
       ),
     );
   }
-}
-
-class _FeaturePlaceholder extends StatelessWidget {
-  const _FeaturePlaceholder({required this.title, required this.detail});
-  final String title;
-  final String detail;
-
-  @override
-  Widget build(BuildContext context) => Center(
-    child: Padding(
-      padding: const EdgeInsets.all(28),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 420),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const Icon(Icons.construction_rounded, size: 42, color: SmMartAdminApp.brandGreen),
-          const SizedBox(height: 14),
-          Text(title, style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w800)),
-          const SizedBox(height: 8),
-          Text(detail, textAlign: TextAlign.center, style: const TextStyle(color: Colors.black54)),
-          const SizedBox(height: 14),
-          const Text('Feature parity implementation is next; no existing backend has been changed.', textAlign: TextAlign.center, style: TextStyle(fontSize: 12)),
-        ]),
-      ),
-    ),
-  );
 }
 
 class _MetricCard extends StatelessWidget {
