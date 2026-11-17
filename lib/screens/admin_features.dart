@@ -40,7 +40,7 @@ class _CataloguePageState extends State<CataloguePage> {
   Future<void> addCategory() async {
     final c=TextEditingController();
     final name=await showDialog<String>(context:context,builder:(x)=>AlertDialog(title:const Text('Add category'),content:TextField(controller:c,decoration:dec('Category name')),actions:[TextButton(onPressed:()=>Navigator.pop(x),child:const Text('Cancel')),FilledButton(onPressed:()=>Navigator.pop(x,c.text.trim()),child:const Text('Add'))]));
-    if(name==null||name.isEmpty)return;
+    if(!mounted||name==null||name.isEmpty)return;
     try { if(categories.any((x)=>(x['name']??'').toString().toLowerCase()==name.toLowerCase())){toast(context,'Category already exists.',error:true);return;} await db.from('product_category').insert({'name':name,'is_active':true}); await load(); }
     catch(e){if(mounted)toast(context,messageOf(e),error:true);}
   }
@@ -58,7 +58,7 @@ class _CataloguePageState extends State<CataloguePage> {
         leading:ClipRRect(borderRadius:BorderRadius.circular(8),child:SizedBox(width:48,height:48,child:p['image_url']!=null?Image.network(p['image_url'],fit:BoxFit.cover,errorBuilder:(_,__,___)=>const Icon(Icons.image)):const Icon(Icons.image_outlined))),
         title:Text(p['name']??'Product',maxLines:1,overflow:TextOverflow.ellipsis),
         subtitle:Text('${money((p['price'] as num?)?.toDouble())} · ${p['unit']??''} · Stock ${p['stock_quantity']??0} · ${cat?['name']??'Uncategorised'}'),
-        trailing:PopupMenuButton<String>(onSelected:(v){if(v=='edit')edit(p);else toggle(p);},itemBuilder:(_)=>[const PopupMenuItem(value:'edit',child:Text('Edit')),PopupMenuItem(value:'toggle',child:Text(p['is_active']==true?'Hide':'Show'))]),
+        trailing:PopupMenuButton<String>(onSelected:(v){if(v=='edit'){edit(p);}else{toggle(p);}},itemBuilder:(_)=>[const PopupMenuItem(value:'edit',child:Text('Edit')),PopupMenuItem(value:'toggle',child:Text(p['is_active']==true?'Hide':'Show'))]),
       ));}),
       if(list.isEmpty)empty('No products found.'),
       const SizedBox(height:16),section('Categories','Enable or hide product categories'),
@@ -101,8 +101,8 @@ class _ProductEditorState extends State<ProductEditor>{
     const SizedBox(height:8),TextFormField(controller:description,decoration:dec('Description'),maxLines:2),
     const SizedBox(height:8),Row(children:[Expanded(child:TextFormField(controller:price,decoration:dec('Price ₹'),keyboardType:const TextInputType.numberWithOptions(decimal:true),validator:(v)=>double.tryParse(v??'')==null?'Invalid price':null)),const SizedBox(width:8),Expanded(child:TextFormField(controller:mrp,decoration:dec('MRP ₹'),keyboardType:const TextInputType.numberWithOptions(decimal:true)))]),
     const SizedBox(height:8),Row(children:[Expanded(child:TextFormField(controller:unit,decoration:dec('Unit'),validator:(v)=>v==null||v.trim().isEmpty?'Required':null)),const SizedBox(width:8),Expanded(child:TextFormField(controller:stock,decoration:dec('Stock'),keyboardType:TextInputType.number,validator:(v)=>int.tryParse(v??'')==null?'Invalid stock':null))]),
-    const SizedBox(height:8),DropdownButtonFormField<String>(value:category,decoration:dec('Category'),items:widget.categories.map((c)=>DropdownMenuItem(value:c['id'].toString(),child:Text(c['name']??'Category'))).toList(),onChanged:(v)=>setState(()=>category=v)),
-    const SizedBox(height:8),DropdownButtonFormField<String>(value:home??'',decoration:dec('Homepage section'),items:[const DropdownMenuItem(value:'',child:Text('None')), ...widget.homes.map((h)=>DropdownMenuItem(value:h['name'].toString(),child:Text(h['name'].toString())))],onChanged:(v)=>setState(()=>home=v)),
+    const SizedBox(height:8),DropdownButtonFormField<String>(initialValue:category,decoration:dec('Category'),items:widget.categories.map((c)=>DropdownMenuItem(value:c['id'].toString(),child:Text(c['name']??'Category'))).toList(),onChanged:(v)=>setState(()=>category=v)),
+    const SizedBox(height:8),DropdownButtonFormField<String>(initialValue:home??'',decoration:dec('Homepage section'),items:[const DropdownMenuItem(value:'',child:Text('None')), ...widget.homes.map((h)=>DropdownMenuItem(value:h['name'].toString(),child:Text(h['name'].toString())))],onChanged:(v)=>setState(()=>home=v)),
     OutlinedButton.icon(onPressed:()async{final x=await ImagePicker().pickImage(source:ImageSource.gallery,imageQuality:82,maxWidth:1600);if(x!=null)setState(()=>image=x);},icon:const Icon(Icons.image),label:Text(image?.name??'Choose product image')),
     if(widget.product?['image_url']!=null)TextButton(onPressed:()=>setState(()=>remove=true),child:const Text('Remove current image')),
     const SizedBox(height:10),FilledButton(onPressed:saving?null:save,child:Text(saving?'Saving…':'Save product')),
@@ -122,7 +122,28 @@ class _OrdersPageState extends State<OrdersPage>{
     orders=List<Map<String,dynamic>>.from(rows);final ids=orders.map((o)=>o['user_id']).whereType<String>().toSet().toList();
     if(ids.isNotEmpty){try{final phones=await db.rpc('admin_customer_phones',params:{'p_user_ids':ids});for(final o in orders){final p=firstMatch(List<Map<String,dynamic>>.from(phones),(r)=>r['user_id']==o['user_id']);o['customer_phone']=p?['phone'];}}catch(_){}}
   }catch(e){if(mounted)toast(context,messageOf(e),error:true);}if(mounted)setState(()=>loading=false);}
-  Future<void> change(Map<String,dynamic> o)async{final s=next[o['status']];if(s==null)return;try{await db.rpc('admin_update_order_status',params:{'p_order_id':o['id'],'p_status':s});await load();if(s=='confirmed'){try{await db.functions.invoke('whatsapp-order-confirmation',body:{'order_id':o['id']});toast(context,'Order confirmed and WhatsApp confirmation submitted.');}catch(_){toast(context,'Order confirmed, but WhatsApp notification failed.',error:true);}}else{toast(context,'Order updated to ${labels[s]}.');}}catch(e){if(mounted)toast(context,messageOf(e),error:true);}}
+  Future<void> change(Map<String,dynamic> o) async {
+    final s = next[o['status']];
+    if (s == null) return;
+    try {
+      await db.rpc('admin_update_order_status', params: {'p_order_id': o['id'], 'p_status': s});
+      if (!mounted) return;
+      await load();
+      if (!mounted) return;
+      if (s == 'confirmed') {
+        try {
+          await db.functions.invoke('whatsapp-order-confirmation', body: {'order_id': o['id']});
+          if (mounted) toast(context, 'Order confirmed and WhatsApp confirmation submitted.');
+        } catch (_) {
+          if (mounted) toast(context, 'Order confirmed, but WhatsApp notification failed.', error: true);
+        }
+      } else {
+        toast(context, 'Order updated to ${labels[s]}.');
+      }
+    } catch (e) {
+      if (mounted) toast(context, messageOf(e), error: true);
+    }
+  }
   Future<void> open(String u)async{final uri=Uri.tryParse(u);if(uri!=null)await launchUrl(uri,mode:LaunchMode.externalApplication);}
   String addr(Map<String,dynamic> o)=>[o['address_line'],o['apartment'],o['landmark']==null?null:'near ${o['landmark']}',o['city'],o['state'],o['postal_code']].where((x)=>x!=null&&x.toString().isNotEmpty).join(', ');
   @override Widget build(BuildContext context){
@@ -132,7 +153,7 @@ class _OrdersPageState extends State<OrdersPage>{
     if(loading)return const Center(child:CircularProgressIndicator());
     return RefreshIndicator(onRefresh:load,child:ListView(padding:const EdgeInsets.all(16),children:[
       section('Customer orders','${orders.length} total · ${orders.where((o)=>!['delivered','cancelled'].contains(o['status'])).length} active'),
-      DropdownButtonFormField<String>(value:filter,decoration:dec('Delivery date'),items:const [DropdownMenuItem(value:'today',child:Text('Today')),DropdownMenuItem(value:'tomorrow',child:Text('Tomorrow')),DropdownMenuItem(value:'dayAfterTomorrow',child:Text('Day after tomorrow')),DropdownMenuItem(value:'yesterday',child:Text('Yesterday'))],onChanged:(v)=>setState(()=>filter=v??'today')),
+      DropdownButtonFormField<String>(initialValue:filter,decoration:dec('Delivery date'),items:const [DropdownMenuItem(value:'today',child:Text('Today')),DropdownMenuItem(value:'tomorrow',child:Text('Tomorrow')),DropdownMenuItem(value:'dayAfterTomorrow',child:Text('Day after tomorrow')),DropdownMenuItem(value:'yesterday',child:Text('Yesterday'))],onChanged:(v)=>setState(()=>filter=v??'today')),
       const SizedBox(height:8),TextField(decoration:dec('Search order number'),keyboardType:TextInputType.number,onChanged:(v)=>setState(()=>search=v)),
       const SizedBox(height:12),
       ...list.map((o){final status=o['status'].toString();final items=List<Map<String,dynamic>>.from(o['order_items']??[]);final address=addr(o);final lat=o['latitude'],lng=o['longitude'];final map=lat is num&&lng is num?'https://www.google.com/maps/dir/?api=1&destination=$lat,$lng':'https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(address)}';final phone=o['customer_phone']?.toString();return Card(child:Padding(padding:const EdgeInsets.all(13),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
@@ -146,7 +167,7 @@ class _OrdersPageState extends State<OrdersPage>{
         ...items.map((i)=>Row(children:[Expanded(child:Text('${i['quantity']} × ${i['product_name']} ${i['product_unit']}',style:const TextStyle(fontSize:12))),Text(orderMoney(((i['unit_price_cents'] as num?)??0)*((i['quantity'] as num?)??0)))])),
         const Divider(),Row(children:[Expanded(child:Text(o['payment_status']=='paid'?'Paid':'Cash on delivery',style:const TextStyle(color:muted,fontSize:11))),Text(orderMoney(o['total_cents']),style:const TextStyle(fontWeight:FontWeight.w800))]),
         if(next.containsKey(status))SizedBox(width:double.infinity,child:FilledButton(onPressed:()=>change(o),child:Text(status=='placed'?'Confirm order':status=='confirmed'?'Start preparing':status=='preparing'?'Mark out for delivery':'Mark delivered'))),
-      ])))}),
+      ])));}),
       if(list.isEmpty)empty('No orders match this date or search.'),
     ]));
   }
@@ -165,11 +186,44 @@ class _PacksPageState extends State<PacksPage>{
   Future<void> load()async{setState(()=>loading=true);try{final r=await Future.wait([db.from('products').select('product_id,name,unit,stock_quantity,inventory_quantity,inventory_unit,is_active').order('name'),db.from('product_variants').select('variant_id,product_id,variant_name,unit_label,price,mrp,inventory_quantity_per_pack,is_active,sort_order').order('sort_order').order('created_at')]);products=List<Map<String,dynamic>>.from(r[0]);variants=List<Map<String,dynamic>>.from(r[1]);if(selected==null&&products.isNotEmpty)choose(products.first['product_id'].toString());}catch(e){if(mounted)toast(context,messageOf(e),error:true);}if(mounted)setState(()=>loading=false);}
   void edit(Map<String,dynamic> v){setState((){editing=v['variant_id'];name.text=v['variant_name']??'';label.text=v['unit_label']??'';price.text=v['price'].toString();mrp.text=v['mrp']?.toString()??'';consumption.text=v['inventory_quantity_per_pack'].toString();});}
   Future<void> savePack()async{final p=product;final amount=double.tryParse(consumption.text),cost=double.tryParse(price.text);if(p==null||name.text.trim().isEmpty||label.text.trim().isEmpty||amount==null||amount<=0||cost==null||cost<0){toast(context,'Enter valid pack details.',error:true);return;}setState(()=>busy=true);try{final m=mrp.text.trim().isEmpty?null:double.tryParse(mrp.text);final data={'product_id':selected,'variant_name':name.text.trim(),'unit_label':label.text.trim(),'price':cost,'mrp':m,'inventory_quantity_per_pack':amount,'updated_at':DateTime.now().toUtc().toIso8601String()};if(editing!=null){await db.from('product_variants').update(data).eq('variant_id',editing!);}else{await db.from('product_variants').insert({...data,'is_active':true,'sort_order':packs.length});}final isDefaultVariant = (editing != null && packs.isNotEmpty && editing == packs.first['variant_id']) || (editing == null && packs.isEmpty);if(isDefaultVariant){final physical=(p['inventory_quantity'] as num?)?.toDouble()??0;await db.from('products').update({'price':cost,'mrp':m,'unit':label.text.trim(),'stock_quantity':(physical/amount).floor()}).eq('product_id',selected!);}reset();await load();}catch(e){if(mounted)toast(context,messageOf(e),error:true);}if(mounted)setState(()=>busy=false);}
-  Future<void> saveStock()async{final p=product,q=double.tryParse(stock.text);if(p==null||q==null||q<0||unit.text.trim().isEmpty){toast(context,'Enter valid shared stock.',error:true);return;}final first=packs.isEmpty?null:packs.first;final per=((first?['inventory_quantity_per_pack'] as num?)??1).toDouble();setState(()=>busy=true);try{await db.from('products').update({'inventory_quantity':q,'inventory_unit':unit.text.trim(),'stock_quantity':(q/per).floor()}).eq('product_id',selected!);await load();toast(context,'Shared inventory updated.');}catch(e){toast(context,messageOf(e),error:true);}setState(()=>busy=false);}
-  Future<void> toggle(Map<String,dynamic> v)async{try{await db.from('product_variants').update({'is_active':v['is_active']!=true,'updated_at':DateTime.now().toUtc().toIso8601String()}).eq('variant_id',v['variant_id']);await load();}catch(e){toast(context,messageOf(e),error:true);}}
+  Future<void> saveStock() async {
+    final p = product;
+    final q = double.tryParse(stock.text);
+    if (p == null || q == null || q < 0 || unit.text.trim().isEmpty) {
+      toast(context, 'Enter valid shared stock.', error: true);
+      return;
+    }
+    final first = packs.isEmpty ? null : packs.first;
+    final per = ((first?['inventory_quantity_per_pack'] as num?) ?? 1).toDouble();
+    setState(() => busy = true);
+    try {
+      await db.from('products').update({
+        'inventory_quantity': q,
+        'inventory_unit': unit.text.trim(),
+        'stock_quantity': (q / per).floor(),
+      }).eq('product_id', selected!);
+      if (!mounted) return;
+      await load();
+      if (mounted) toast(context, 'Shared inventory updated.');
+    } catch (e) {
+      if (mounted) toast(context, messageOf(e), error: true);
+    }
+    if (mounted) setState(() => busy = false);
+  }
+  Future<void> toggle(Map<String,dynamic> v) async {
+    try {
+      await db.from('product_variants').update({
+        'is_active': v['is_active'] != true,
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
+      }).eq('variant_id', v['variant_id']);
+      if (mounted) await load();
+    } catch (e) {
+      if (mounted) toast(context, messageOf(e), error: true);
+    }
+  }
   @override Widget build(BuildContext context){if(loading)return const Center(child:CircularProgressIndicator());final p=product;return RefreshIndicator(onRefresh:load,child:ListView(padding:const EdgeInsets.all(16),children:[
     section('Pack sizes & pricing','Each pack consumes stock from the same physical inventory'),
-    DropdownButtonFormField<String>(value:selected,decoration:dec('Select product'),items:products.map((p)=>DropdownMenuItem(value:p['product_id'].toString(),child:Text(p['name']??'Product'))).toList(),onChanged:choose),
+    DropdownButtonFormField<String>(initialValue:selected,decoration:dec('Select product'),items:products.map((p)=>DropdownMenuItem(value:p['product_id'].toString(),child:Text(p['name']??'Product'))).toList(),onChanged:choose),
     if(p!=null)...[
       const SizedBox(height:14),Card(child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
         Text(editing==null?'Add pack size':'Edit pack size',style:const TextStyle(fontWeight:FontWeight.w800)),
@@ -185,7 +239,7 @@ class _PacksPageState extends State<PacksPage>{
         Text('Sellable: ${p['stock_quantity']??0} default packs · Physical: ${p['inventory_quantity']??0} ${p['inventory_unit']??'unit'}',style:const TextStyle(fontSize:11,color:muted)),
       ]))),
       section('Available pack options','${packs.length} variants'),
-      ...packs.map((v)=>Card(child:ListTile(title:Text(v['variant_name']??'Pack'),subtitle:Text('${v['unit_label']} · ${money((v['price'] as num?)?.toDouble())} · consumes ${v['inventory_quantity_per_pack']} ${p['inventory_unit']??'unit'}'),trailing:PopupMenuButton<String>(onSelected:(a){if(a=='edit')edit(v);else toggle(v);},itemBuilder:(_)=>[const PopupMenuItem(value:'edit',child:Text('Edit')),PopupMenuItem(value:'toggle',child:Text(v['is_active']==true?'Disable':'Enable'))])))),
+      ...packs.map((v)=>Card(child:ListTile(title:Text(v['variant_name']??'Pack'),subtitle:Text('${v['unit_label']} · ${money((v['price'] as num?)?.toDouble())} · consumes ${v['inventory_quantity_per_pack']} ${p['inventory_unit']??'unit'}'),trailing:PopupMenuButton<String>(onSelected:(a){if(a=='edit'){edit(v);}else{toggle(v);}},itemBuilder:(_)=>[const PopupMenuItem(value:'edit',child:Text('Edit')),PopupMenuItem(value:'toggle',child:Text(v['is_active']==true?'Disable':'Enable'))])))),
     ],if(products.isEmpty)empty('Add products before configuring pack sizes.')]));
   }
 }
@@ -199,7 +253,7 @@ class _ShopPageState extends State<ShopPage>{
   Future<void> save({bool? isOpen,bool? isOnline})async{setState(()=>saving=true);try{final data=<String,dynamic>{'updated_at':DateTime.now().toUtc().toIso8601String()};if(isOpen!=null)data['is_open']=isOpen;if(isOnline!=null)data['accepting_online_orders']=isOnline;if(isOpen==null&&isOnline==null)data['closed_message']=message.text.trim();await db.from('shop_settings').update(data).eq('id',1);if(isOpen!=null)open=isOpen;if(isOnline!=null)online=isOnline;if(mounted)toast(context,'Shop settings saved.');}catch(e){if(mounted)toast(context,messageOf(e),error:true);}if(mounted)setState(()=>saving=false);}
   @override Widget build(BuildContext context){if(loading)return const Center(child:CircularProgressIndicator());return RefreshIndicator(onRefresh:load,child:ListView(padding:const EdgeInsets.all(16),children:[
     section('Shop settings','Manage shop availability and checkout separately'),
-    Card(child:SwitchListTile(value:open,onChanged:saving?null:(v)=>save(isOpen:v),activeColor:green,title:Text(open?'Shop is open':'Shop is closed',style:const TextStyle(fontWeight:FontWeight.w800)),subtitle:Text(open?'Customers can browse and place COD orders.':'Browsing remains available; checkout is paused.'),secondary:const Icon(Icons.storefront,color:green))),
+    Card(child:SwitchListTile(value:open,onChanged:saving?null:(v)=>save(isOpen:v),activeThumbColor:green,title:Text(open?'Shop is open':'Shop is closed',style:const TextStyle(fontWeight:FontWeight.w800)),subtitle:Text(open?'Customers can browse and place COD orders.':'Browsing remains available; checkout is paused.'),secondary:const Icon(Icons.storefront,color:green))),
     Card(child:SwitchListTile(value:online,onChanged:saving?null:(v)=>save(isOnline:v),activeColor:green,title:Text(online?'Online orders enabled':'Online orders disabled',style:const TextStyle(fontWeight:FontWeight.w800)),subtitle:const Text('Controls the existing accepting_online_orders setting.'),secondary:const Icon(Icons.shopping_bag_outlined,color:green))),
     Card(child:Padding(padding:const EdgeInsets.all(16),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('Checkout unavailable message',style:TextStyle(fontWeight:FontWeight.w800)),const SizedBox(height:8),TextField(controller:message,maxLength:220,maxLines:4,decoration:dec('Customer-facing message')),SizedBox(width:double.infinity,child:FilledButton(onPressed:saving||message.text.trim().isEmpty?null:()=>save(),child:const Text('Save message')))]))),
     const Padding(padding:EdgeInsets.all(12),child:Text('Closing the shop affects new checkout only. Existing orders are not changed.',style:TextStyle(fontSize:12,color:muted))),
@@ -210,7 +264,7 @@ class DeliveryPage extends StatelessWidget{
   const DeliveryPage({super.key});
   @override Widget build(BuildContext context)=>ListView(padding:const EdgeInsets.all(16),children:[
     section('Delivery operations','Partner accounts, assignments and live delivery sessions'),
-    Card(child:Padding(padding:const EdgeInsets.all(16),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:const[
+    const Card(child:Padding(padding:EdgeInsets.all(16),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
       Icon(Icons.lock_outline,size:32,color:green),SizedBox(height:10),
       Text('Secure server connection required',style:TextStyle(fontSize:17,fontWeight:FontWeight.w800)),
       SizedBox(height:8),
