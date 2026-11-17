@@ -53,11 +53,11 @@ class _AdminShellState extends State<AdminShell> {
             onOpenProducts: () => setState(() => _index = 1),
             onOpenDelivery: () => setState(() => _index = 4),
           ),
-          CataloguePage(),
+          const CataloguePage(),
           OrdersPage(key: ValueKey(_ordersRefreshKey)),
-          PacksPage(),
-          MobileDeliveryPage(),
-          ShopPage(),
+          const PacksPage(),
+          const MobileDeliveryPage(),
+          const ShopPage(),
         ],
       ),
       bottomNavigationBar: NavigationBar(
@@ -96,14 +96,22 @@ class _OverviewPageState extends State<_OverviewPage> {
     setState(() { _loading = true; _error = null; });
     try {
       final client = Supabase.instance.client;
-      final results = await Future.wait([
-        client.from('products').select('product_id,is_active'),
-        client.from('orders').select('id,order_number,status,total_cents,created_at,delivery_date').order('created_at', ascending: false),
-        client.from('shop_settings').select('is_open,accepting_online_orders').eq('id', 1).maybeSingle(),
-      ]);
-      final products = List<Map<String, dynamic>>.from(results[0]);
-      final orders = List<Map<String, dynamic>>.from(results[1]);
-      final settings = results[2] as Map<String, dynamic>?;
+      // Keep these queries sequential: each Supabase query has a different
+      // response type, so Future.wait would infer an Object? result list.
+      final productsResponse = await client
+          .from('products')
+          .select('product_id,is_active');
+      final ordersResponse = await client
+          .from('orders')
+          .select('id,order_number,status,total_cents,created_at,delivery_date')
+          .order('created_at', ascending: false);
+      final settings = await client
+          .from('shop_settings')
+          .select('is_open,accepting_online_orders')
+          .eq('id', 1)
+          .maybeSingle();
+      final products = List<Map<String, dynamic>>.from(productsResponse);
+      final orders = List<Map<String, dynamic>>.from(ordersResponse);
       final now = DateTime.now().toUtc().add(const Duration(hours: 5, minutes: 30));
       final today = DateFormat('yyyy-MM-dd').format(now);
       _products = products.length;
@@ -179,7 +187,7 @@ class _OverviewPageState extends State<_OverviewPage> {
             children: [
               _DashboardMetric(label: 'Active orders', value: _activeOrders.toString(), note: 'Orders in progress', icon: Icons.receipt_long_rounded, tint: const Color(0xFFE8F2EB), onTap: widget.onOpenOrders),
               _DashboardMetric(label: "Today's deliveries", value: _todayOrders.toString(), note: 'Scheduled for today', icon: Icons.local_shipping_rounded, tint: const Color(0xFFEAF1FA), onTap: widget.onOpenOrders),
-              _DashboardMetric(label: 'Live products', value: _activeProducts.toString(), note: _products.toString() + ' total catalogue items', icon: Icons.inventory_2_rounded, tint: const Color(0xFFFFF3E3), onTap: widget.onOpenProducts),
+              _DashboardMetric(label: 'Live products', value: _activeProducts.toString(), note: '$_products total catalogue items', icon: Icons.inventory_2_rounded, tint: const Color(0xFFFFF3E3), onTap: widget.onOpenProducts),
               _DashboardMetric(label: 'Out for delivery', value: _outForDelivery.toString(), note: 'Currently with partners', icon: Icons.delivery_dining_rounded, tint: const Color(0xFFF1ECFA), onTap: widget.onOpenDelivery),
             ],
           ),
@@ -209,7 +217,7 @@ class _OverviewPageState extends State<_OverviewPage> {
                   contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
                   leading: Container(width: 42, height: 42, decoration: BoxDecoration(color: const Color(0xFFEAF2EC), borderRadius: BorderRadius.circular(13)),
                     child: const Icon(Icons.receipt_long_rounded, color: SmMartAdminApp.brandGreen, size: 21)),
-                  title: Text('Order #' + (o['order_number']?.toString() ?? ''), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
+                  title: Text('Order #${o['order_number']?.toString() ?? ''}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
                   subtitle: Text(created == null ? 'Date unavailable' : DateFormat('d MMM · h:mm a').format(created.toLocal()), style: const TextStyle(fontSize: 11, color: Color(0xFF68736B))),
                   trailing: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [
                     Text(NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0).format(amount), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
