@@ -228,7 +228,7 @@ class _ProductEditorState extends State<ProductEditor>{
 
 class OrdersPage extends StatefulWidget{const OrdersPage({super.key});@override State<OrdersPage> createState()=>_OrdersPageState();}
 class _OrdersPageState extends State<OrdersPage>{
-  bool loading=true;String search='',filter='all',statusFilter='all';List<Map<String,dynamic>> orders=[];
+  bool loading=true;String search='',filter='all',statusFilter='all';List<Map<String,dynamic>> orders=[];final Set<dynamic> updatingOrderIds={};
   final labels={'placed':'Placed','confirmed':'Confirmed','preparing':'Preparing','out_for_delivery':'Out for delivery','delivered':'Delivered','cancelled':'Cancelled'};
   final next={'placed':'confirmed','confirmed':'preparing','preparing':'out_for_delivery','out_for_delivery':'delivered'};
   String get today=>DateFormat('yyyy-MM-dd').format(DateTime.now().toUtc().add(const Duration(hours:5,minutes:30)));
@@ -241,15 +241,22 @@ class _OrdersPageState extends State<OrdersPage>{
   }catch(e){if(mounted)toast(context,messageOf(e),error:true);}if(mounted)setState(()=>loading=false);}
   Future<void> change(Map<String,dynamic> o) async {
     final s = next[o['status']];
-    if (s == null) return;
+    final orderId = o['id'];
+    if (s == null || updatingOrderIds.contains(orderId)) return;
+    setState(() => updatingOrderIds.add(orderId));
     try {
-      await db.rpc('admin_update_order_status', params: {'p_order_id': o['id'], 'p_status': s});
+      await db.rpc('admin_update_order_status', params: {'p_order_id': orderId, 'p_status': s});
       if (!mounted) return;
-      await load();
-      if (!mounted) return;
+
+      // Update this order locally instead of re-fetching the entire order list.
+      final index = orders.indexWhere((item) => item['id'] == orderId);
+      if (index != -1) {
+        setState(() => orders[index]['status'] = s);
+      }
+
       if (s == 'confirmed') {
         try {
-          await db.functions.invoke('whatsapp-order-confirmation', body: {'order_id': o['id']});
+          await db.functions.invoke('whatsapp-order-confirmation', body: {'order_id': orderId});
           if (mounted) toast(context, 'Order confirmed and WhatsApp confirmation submitted.');
         } catch (_) {
           if (mounted) toast(context, 'Order confirmed, but WhatsApp notification failed.', error: true);
@@ -259,6 +266,8 @@ class _OrdersPageState extends State<OrdersPage>{
       }
     } catch (e) {
       if (mounted) toast(context, messageOf(e), error: true);
+    } finally {
+      if (mounted) setState(() => updatingOrderIds.remove(orderId));
     }
   }
   Future<void> open(String u)async{final uri=Uri.tryParse(u);if(uri!=null)await launchUrl(uri,mode:LaunchMode.externalApplication);}
@@ -351,7 +360,7 @@ class _OrdersPageState extends State<OrdersPage>{
             ...items.map((i)=>Padding(padding:const EdgeInsets.symmetric(vertical:4),child:Row(children:[Expanded(child:Text('${i['quantity']} × ${i['product_name']} ${i['product_unit']}',style:const TextStyle(fontSize:12))),Text(orderMoney(((i['unit_price_cents'] as num?)??0)*((i['quantity'] as num?)??0)),style:const TextStyle(fontSize:12,fontWeight:FontWeight.w600))]))),
             const Divider(height:18),
             Row(children:[Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(o['payment_status']=='paid'?'Paid':'Cash on delivery',style:const TextStyle(fontSize:12,fontWeight:FontWeight.w700)),const Text('Payment',style:TextStyle(fontSize:10,color:muted))])),Text(amount,style:const TextStyle(fontSize:18,fontWeight:FontWeight.w900))]),
-            if(next.containsKey(status))Padding(padding:const EdgeInsets.only(top:12),child:SizedBox(width:double.infinity,child:FilledButton.icon(onPressed:()=>change(o),icon:Icon(status=='placed'?Icons.check_rounded:status=='confirmed'?Icons.soup_kitchen_outlined:status=='preparing'?Icons.local_shipping_outlined:Icons.done_all_rounded),label:Text(status=='placed'?'Confirm order':status=='confirmed'?'Start preparing':status=='preparing'?'Mark out for delivery':'Mark delivered')))),
+            if(next.containsKey(status))Padding(padding:const EdgeInsets.only(top:12),child:SizedBox(width:double.infinity,child:FilledButton.icon(onPressed:updatingOrderIds.contains(o['id'])?null:()=>change(o),icon:updatingOrderIds.contains(o['id'])?const SizedBox(width:18,height:18,child:CircularProgressIndicator(strokeWidth:2)):Icon(status=='placed'?Icons.check_rounded:status=='confirmed'?Icons.soup_kitchen_outlined:status=='preparing'?Icons.local_shipping_outlined:Icons.done_all_rounded),label:Text(updatingOrderIds.contains(o['id'])?'Updating…':status=='placed'?'Confirm order':status=='confirmed'?'Start preparing':status=='preparing'?'Mark out for delivery':'Mark delivered')))),
           ],
         ));
       }),
