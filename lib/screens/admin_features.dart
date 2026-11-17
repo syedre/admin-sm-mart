@@ -109,7 +109,7 @@ class _CataloguePageState extends State<CataloguePage> {
         ChoiceChip(label:const Text('Hidden'),selected:visibilityFilter=='hidden',onSelected:(_)=>setState(()=>visibilityFilter='hidden')),
       ]),
       const SizedBox(height:8),
-      Row(children:[Expanded(child:Text('${list.length} products',style:const TextStyle(color:muted,fontSize:12,fontWeight:FontWeight.w600))),TextButton.icon(onPressed:()=>setState(()=>{search='',categoryFilter='all',visibilityFilter='all'}),icon:const Icon(Icons.filter_alt_off_outlined,size:16),label:const Text('Clear filters'))]),
+      Row(children:[Expanded(child:Text('${list.length} products',style:const TextStyle(color:muted,fontSize:12,fontWeight:FontWeight.w600))),TextButton.icon(onPressed:()=>setState(() { search=''; categoryFilter='all'; visibilityFilter='all'; }),icon:const Icon(Icons.filter_alt_off_outlined,size:16),label:const Text('Clear filters'))]),
       ...list.map((p){
         final cat=firstMatch(categories,(x)=>x['id']==p['category_id']);
         final active=p['is_active']==true;
@@ -285,7 +285,7 @@ class _OrdersPageState extends State<OrdersPage>{
         DropdownMenuItem(value:'cancelled',child:Text('Cancelled')),
       ],onChanged:(v)=>setState(()=>statusFilter=v??'all')),
       const SizedBox(height:12),
-      Row(children:[Expanded(child:Text('${list.length} matching orders',style:const TextStyle(fontSize:12,color:muted,fontWeight:FontWeight.w600))),TextButton(onPressed:()=>setState(()=>{search='',filter='all',statusFilter='all'}),child:const Text('Reset filters'))]),
+      Row(children:[Expanded(child:Text('${list.length} matching orders',style:const TextStyle(fontSize:12,color:muted,fontWeight:FontWeight.w600))),TextButton(onPressed:()=>setState(() { search=''; filter='all'; statusFilter='all'; }),child:const Text('Reset filters'))]),
       ...list.map((o){
         final status=o['status'].toString();
         final items=List<Map<String,dynamic>>.from(o['order_items']??[]);
@@ -479,7 +479,7 @@ class _ShopPageState extends State<ShopPage>{
         const SizedBox(height:5),
         const Text('Shown to customers when checkout is unavailable.',style:TextStyle(fontSize:11,color:muted)),
         const SizedBox(height:12),
-        TextField(controller:message,maxLength:220,maxLines:4,decoration:dec('Customer-facing message')),
+        TextField(controller:message,maxLength:220,maxLines:4,onChanged:(_)=>setState(() {}),decoration:dec('Customer-facing message')),
         const SizedBox(height:8),
         SizedBox(width:double.infinity,child:FilledButton.icon(onPressed:saving||message.text.trim().isEmpty?null:()=>save(),icon:const Icon(Icons.save_outlined),label:Text(saving?'Saving…':'Save message'))),
       ]))),
