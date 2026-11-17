@@ -1,0 +1,24 @@
+# Flutter / Dart
+.dart_tool/
+.packages
+.pub-cache/
+.pub/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+.metadata
+.flutter-*.log
+coverage/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Platform signing / local config
+android/key.properties
+android/app/*.jks
+ios/Runner/GoogleService-Info.plist
+.env
+.env.*
+!.env.example
