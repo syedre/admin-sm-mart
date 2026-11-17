@@ -21,9 +21,39 @@ Widget section(String title, String note) => Padding(padding: const EdgeInsets.o
 ]));
 Widget empty(String text) => Padding(padding: const EdgeInsets.all(28), child: Center(child: Text(text, textAlign: TextAlign.center, style: const TextStyle(color: muted))));
 
+
+class _AdminStatCard extends StatelessWidget {
+  const _AdminStatCard({required this.label,required this.value,required this.icon,this.accent=false});
+  final String label,value;
+  final IconData icon;
+  final bool accent;
+  @override
+  Widget build(BuildContext context)=>Card(child:Padding(padding:const EdgeInsets.all(12),child:Row(children:[
+    Container(width:34,height:34,decoration:BoxDecoration(color:accent?const Color(0xFFE8F2EB):const Color(0xFFF1F2EE),borderRadius:BorderRadius.circular(11)),child:Icon(icon,size:18,color:green)),
+    const SizedBox(width:9),
+    Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+      Text(value,style:const TextStyle(fontSize:18,fontWeight:FontWeight.w900,height:1.1)),
+      const SizedBox(height:3),
+      Text(label,maxLines:1,overflow:TextOverflow.ellipsis,style:const TextStyle(fontSize:10,color:muted,fontWeight:FontWeight.w600)),
+    ])),
+  ])));
+}
+
+class _AdminStatusTag extends StatelessWidget {
+  const _AdminStatusTag({required this.label,required this.active,this.color});
+  final String label;
+  final bool active;
+  final Color? color;
+  @override
+  Widget build(BuildContext context){
+    final tint=color??(active?green:muted);
+    return Container(padding:const EdgeInsets.symmetric(horizontal:8,vertical:4),decoration:BoxDecoration(color:tint.withValues(alpha:.10),borderRadius:BorderRadius.circular(20)),child:Text(label,style:TextStyle(color:tint,fontSize:10,fontWeight:FontWeight.w800)));
+  }
+}
+
 class CataloguePage extends StatefulWidget { const CataloguePage({super.key}); @override State<CataloguePage> createState()=>_CataloguePageState(); }
 class _CataloguePageState extends State<CataloguePage> {
-  bool loading=true; String search=''; List<Map<String,dynamic>> products=[], categories=[], homes=[];
+  bool loading=true; String search='', categoryFilter='all', visibilityFilter='all'; List<Map<String,dynamic>> products=[], categories=[], homes=[];
   @override void initState(){super.initState();load();}
   Future<void> load() async {
     setState(()=>loading=true);
@@ -48,21 +78,67 @@ class _CataloguePageState extends State<CataloguePage> {
   Future<void> toggleCategory(Map<String,dynamic> c) async {try{await db.from('product_category').update({'is_active':c['is_active']!=true}).eq('id',c['id']);await load();}catch(e){if(mounted)toast(context,messageOf(e),error:true);}}
   Future<void> edit([Map<String,dynamic>? p]) async {final result=await showModalBottomSheet<bool>(context:context,isScrollControlled:true,useSafeArea:true,builder:(_)=>ProductEditor(product:p,categories:categories,homes:homes));if(result==true)load();}
   @override Widget build(BuildContext context){
-    final list=products.where((p)=>(p['name']??'').toString().toLowerCase().contains(search.toLowerCase())).toList();
+    final query=search.trim().toLowerCase();
+    final list=products.where((p){
+      final matchesName=(p['name']??'').toString().toLowerCase().contains(query);
+      final matchesCategory=categoryFilter=='all'||p['category_id']?.toString()==categoryFilter;
+      final matchesVisibility=visibilityFilter=='all'||(visibilityFilter=='visible'?p['is_active']==true:p['is_active']!=true);
+      return matchesName&&matchesCategory&&matchesVisibility;
+    }).toList();
     if(loading)return const Center(child:CircularProgressIndicator());
-    return RefreshIndicator(onRefresh:load,child:ListView(padding:const EdgeInsets.all(16),children:[
-      Row(children:[Expanded(child:section('Catalogue','${products.length} products · ${products.where((p)=>p['is_active']==true).length} visible')),IconButton(onPressed:addCategory,icon:const Icon(Icons.create_new_folder_outlined)),FilledButton.icon(onPressed:()=>edit(),icon:const Icon(Icons.add),label:const Text('Add'))]),
-      TextField(decoration:dec('Search products'),onChanged:(v)=>setState(()=>search=v)),
-      const SizedBox(height:12),
-      ...list.map((p){final cat=firstMatch(categories,(c)=>c['id']==p['category_id']);return Card(child:ListTile(
-        leading:ClipRRect(borderRadius:BorderRadius.circular(8),child:SizedBox(width:48,height:48,child:p['image_url']!=null?Image.network(p['image_url'],fit:BoxFit.cover,errorBuilder:(_,__,___)=>const Icon(Icons.image)):const Icon(Icons.image_outlined))),
-        title:Text(p['name']??'Product',maxLines:1,overflow:TextOverflow.ellipsis),
-        subtitle:Text('${money((p['price'] as num?)?.toDouble())} · ${p['unit']??''} · Stock ${p['stock_quantity']??0} · ${cat?['name']??'Uncategorised'}'),
-        trailing:PopupMenuButton<String>(onSelected:(v){if(v=='edit'){edit(p);}else{toggle(p);}},itemBuilder:(_)=>[const PopupMenuItem(value:'edit',child:Text('Edit')),PopupMenuItem(value:'toggle',child:Text(p['is_active']==true?'Hide':'Show'))]),
-      ));}),
-      if(list.isEmpty)empty('No products found.'),
-      const SizedBox(height:16),section('Categories','Enable or hide product categories'),
-      ...categories.map((c)=>Card(child:SwitchListTile(value:c['is_active']==true,title:Text(c['name']??'Category'),onChanged:(_)=>toggleCategory(c)))),
+    final visible=products.where((p)=>p['is_active']==true).length;
+    return RefreshIndicator(onRefresh:load,child:ListView(padding:const EdgeInsets.fromLTRB(16,16,16,28),children:[
+      Row(crossAxisAlignment:CrossAxisAlignment.start,children:[
+        Expanded(child:section('Product catalogue','Manage products, pricing and visibility')),
+        IconButton(tooltip:'Add category',onPressed:addCategory,icon:const Icon(Icons.create_new_folder_outlined)),
+        FilledButton.icon(onPressed:()=>edit(),icon:const Icon(Icons.add_rounded),label:const Text('Add product')),
+      ]),
+      Row(children:[
+        Expanded(child:_AdminStatCard(label:'All products',value:'${products.length}',icon:Icons.inventory_2_outlined)),
+        const SizedBox(width:9),
+        Expanded(child:_AdminStatCard(label:'Visible',value:'$visible',icon:Icons.visibility_outlined,accent:true)),
+      ]),
+      const SizedBox(height:14),
+      TextField(decoration:dec('Search products').copyWith(prefixIcon:const Icon(Icons.search_rounded),hintText:'Name of a product'),onChanged:(v)=>setState(()=>search=v)),
+      const SizedBox(height:10),
+      DropdownButtonFormField<String>(initialValue:categoryFilter,isExpanded:true,decoration:dec('Category').copyWith(prefixIcon:const Icon(Icons.category_outlined),isDense:true),items:[const DropdownMenuItem(value:'all',child:Text('All categories')),...categories.map((cat)=>DropdownMenuItem(value:cat['id'].toString(),child:Text(cat['name']??'Category')))],onChanged:(v)=>setState(()=>categoryFilter=v??'all')),
+      const SizedBox(height:9),
+      Wrap(spacing:8,children:[
+        ChoiceChip(label:const Text('All'),selected:visibilityFilter=='all',onSelected:(_)=>setState(()=>visibilityFilter='all')),
+        ChoiceChip(label:const Text('Visible'),selected:visibilityFilter=='visible',onSelected:(_)=>setState(()=>visibilityFilter='visible')),
+        ChoiceChip(label:const Text('Hidden'),selected:visibilityFilter=='hidden',onSelected:(_)=>setState(()=>visibilityFilter='hidden')),
+      ]),
+      const SizedBox(height:8),
+      Row(children:[Expanded(child:Text('${list.length} products',style:const TextStyle(color:muted,fontSize:12,fontWeight:FontWeight.w600))),TextButton.icon(onPressed:()=>setState(() { search=''; categoryFilter='all'; visibilityFilter='all'; }),icon:const Icon(Icons.filter_alt_off_outlined,size:16),label:const Text('Clear filters'))]),
+      ...list.map((p){
+        final cat=firstMatch(categories,(x)=>x['id']==p['category_id']);
+        final active=p['is_active']==true;
+        return Card(margin:const EdgeInsets.only(bottom:9),child:Padding(padding:const EdgeInsets.all(11),child:Row(children:[
+          ClipRRect(borderRadius:BorderRadius.circular(13),child:Container(width:66,height:66,color:const Color(0xFFF1F3EF),child:p['image_url']!=null?Image.network(p['image_url'],fit:BoxFit.cover,errorBuilder:(_,__,___)=>const Icon(Icons.image_not_supported_outlined,color:muted)):const Icon(Icons.image_outlined,color:muted,size:27))),
+          const SizedBox(width:12),
+          Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+            Text(p['name']??'Product',maxLines:2,overflow:TextOverflow.ellipsis,style:const TextStyle(fontWeight:FontWeight.w800,fontSize:14)),
+            const SizedBox(height:4),
+            Text('${cat?['name']??'Uncategorised'} · ${p['unit']??''}',maxLines:1,overflow:TextOverflow.ellipsis,style:const TextStyle(color:muted,fontSize:11)),
+            const SizedBox(height:6),
+            Wrap(spacing:7,runSpacing:4,crossAxisAlignment:WrapCrossAlignment.center,children:[
+              Text(money((p['price'] as num?)?.toDouble()),style:const TextStyle(fontWeight:FontWeight.w800,fontSize:13,color:green)),
+              Text('Stock ${p['stock_quantity']??0}',style:const TextStyle(fontSize:11,color:muted)),
+              _AdminStatusTag(label:active?'Visible':'Hidden',active:active),
+            ]),
+          ])),
+          PopupMenuButton<String>(tooltip:'Product actions',onSelected:(v){if(v=='edit'){edit(p);}else{toggle(p);}},itemBuilder:(_)=>[const PopupMenuItem(value:'edit',child:Text('Edit product')),PopupMenuItem(value:'toggle',child:Text(active?'Hide product':'Show product'))]),
+        ])));
+      }),
+      if(list.isEmpty)empty('No products match these filters.'),
+      const SizedBox(height:18),
+      section('Categories','Control which categories customers can browse'),
+      ...categories.map((cat)=>Card(margin:const EdgeInsets.only(bottom:7),child:SwitchListTile(
+        value:cat['is_active']==true,onChanged:(_)=>toggleCategory(cat),activeThumbColor:green,
+        secondary:Container(width:38,height:38,decoration:BoxDecoration(color:const Color(0xFFEAF2EC),borderRadius:BorderRadius.circular(11)),child:const Icon(Icons.category_outlined,color:green,size:19)),
+        title:Text(cat['name']??'Category',style:const TextStyle(fontWeight:FontWeight.w700,fontSize:13)),
+        subtitle:Text(cat['is_active']==true?'Shown in the customer catalogue':'Hidden from the customer catalogue',style:const TextStyle(fontSize:11,color:muted)),
+      ))),
     ]));
   }
 }
@@ -111,7 +187,7 @@ class _ProductEditorState extends State<ProductEditor>{
 
 class OrdersPage extends StatefulWidget{const OrdersPage({super.key});@override State<OrdersPage> createState()=>_OrdersPageState();}
 class _OrdersPageState extends State<OrdersPage>{
-  bool loading=true;String search='',filter='all';List<Map<String,dynamic>> orders=[];
+  bool loading=true;String search='',filter='all',statusFilter='all';List<Map<String,dynamic>> orders=[];
   final labels={'placed':'Placed','confirmed':'Confirmed','preparing':'Preparing','out_for_delivery':'Out for delivery','delivered':'Delivered','cancelled':'Cancelled'};
   final next={'placed':'confirmed','confirmed':'preparing','preparing':'out_for_delivery','out_for_delivery':'delivered'};
   String get today=>DateFormat('yyyy-MM-dd').format(DateTime.now().toUtc().add(const Duration(hours:5,minutes:30)));
@@ -148,44 +224,47 @@ class _OrdersPageState extends State<OrdersPage>{
   String addr(Map<String,dynamic> o)=>[o['address_line'],o['apartment'],o['landmark']==null?null:'near ${o['landmark']}',o['city'],o['state'],o['postal_code']].where((x)=>x!=null&&x.toString().isNotEmpty).join(', ');
   @override Widget build(BuildContext context){
     final q=search.trim().replaceFirst('#','').replaceAll(RegExp(r'\s+'),'');
-    final todayDate = DateTime.parse(today);
-    bool matchesDeliveryDate(Map<String,dynamic> order) {
-      if (filter == 'all') return true;
-      final raw = order['delivery_date']?.toString();
-      if (raw == null || raw.length < 10) return false;
-      final parsed = DateTime.tryParse(raw.substring(0, 10));
-      if (parsed == null) return false;
-      final deliveryDay = DateTime(parsed.year, parsed.month, parsed.day);
-      switch (filter) {
-        case 'today':
-          return deliveryDay == todayDate;
-        case 'tomorrow':
-          return deliveryDay == todayDate.add(const Duration(days: 1));
-        case 'dayAfterTomorrow':
-          return deliveryDay == todayDate.add(const Duration(days: 2));
-        case 'yesterday':
-          return deliveryDay == todayDate.subtract(const Duration(days: 1));
-        case 'last7Days':
-          return !deliveryDay.isBefore(todayDate.subtract(const Duration(days: 6))) && !deliveryDay.isAfter(todayDate);
-        case 'last30Days':
-          return !deliveryDay.isBefore(todayDate.subtract(const Duration(days: 29))) && !deliveryDay.isAfter(todayDate);
-        case 'thisMonth':
-          return deliveryDay.year == todayDate.year && deliveryDay.month == todayDate.month;
-        case 'lastMonth':
-          final lastMonth = DateTime(todayDate.year, todayDate.month - 1);
-          return deliveryDay.year == lastMonth.year && deliveryDay.month == lastMonth.month;
-        default:
-          return false;
+    final todayDate=DateTime.parse(today);
+    bool matchesDeliveryDate(Map<String,dynamic> order){
+      if(filter=='all')return true;
+      final raw=order['delivery_date']?.toString();
+      if(raw==null||raw.length<10)return false;
+      final parsed=DateTime.tryParse(raw.substring(0,10));
+      if(parsed==null)return false;
+      final day=DateTime(parsed.year,parsed.month,parsed.day);
+      switch(filter){
+        case 'today':return day==todayDate;
+        case 'tomorrow':return day==todayDate.add(const Duration(days:1));
+        case 'dayAfterTomorrow':return day==todayDate.add(const Duration(days:2));
+        case 'yesterday':return day==todayDate.subtract(const Duration(days:1));
+        case 'last7Days':return !day.isBefore(todayDate.subtract(const Duration(days:6)))&&!day.isAfter(todayDate);
+        case 'last30Days':return !day.isBefore(todayDate.subtract(const Duration(days:29)))&&!day.isAfter(todayDate);
+        case 'thisMonth':return day.year==todayDate.year&&day.month==todayDate.month;
+        case 'lastMonth':final m=DateTime(todayDate.year,todayDate.month-1);return day.year==m.year&&day.month==m.month;
+        default:return false;
       }
     }
-    final list=orders.where((o)=>q.isNotEmpty
-      ? o['order_number'].toString().contains(q)
-      : matchesDeliveryDate(o)).toList();
+    final list=orders.where((o){
+      final matchesSearch=q.isNotEmpty?(o['order_number']?.toString()??'').contains(q):matchesDeliveryDate(o);
+      return matchesSearch&&(statusFilter=='all'||o['status']==statusFilter);
+    }).toList();
     if(loading)return const Center(child:CircularProgressIndicator());
-    return RefreshIndicator(onRefresh:load,child:ListView(padding:const EdgeInsets.all(16),children:[
-      section('Customer orders','${orders.length} total · ${orders.where((o)=>!['delivered','cancelled'].contains(o['status'])).length} active'),
-      DropdownButtonFormField<String>(initialValue:filter,decoration:dec('Delivery date'),items:const [
-        DropdownMenuItem(value:'all',child:Text('All Orders')),
+    final active=orders.where((o)=>!['delivered','cancelled'].contains(o['status'])).length;
+    final pending=orders.where((o)=>o['status']=='placed').length;
+    return RefreshIndicator(onRefresh:load,child:ListView(padding:const EdgeInsets.fromLTRB(16,16,16,28),children:[
+      section('Customer orders','Review, confirm and track every customer order'),
+      Row(children:[
+        Expanded(child:_AdminStatCard(label:'Total orders',value:'${orders.length}',icon:Icons.receipt_long_outlined)),
+        const SizedBox(width:8),
+        Expanded(child:_AdminStatCard(label:'In progress',value:'$active',icon:Icons.timelapse_rounded,accent:true)),
+        const SizedBox(width:8),
+        Expanded(child:_AdminStatCard(label:'New',value:'$pending',icon:Icons.fiber_new_rounded)),
+      ]),
+      const SizedBox(height:14),
+      TextField(decoration:dec('Search order number').copyWith(prefixIcon:const Icon(Icons.search_rounded),hintText:'Enter order number'),keyboardType:TextInputType.number,onChanged:(v)=>setState(()=>search=v)),
+      const SizedBox(height:10),
+      DropdownButtonFormField<String>(initialValue:filter,isExpanded:true,decoration:dec('Delivery date').copyWith(prefixIcon:const Icon(Icons.calendar_month_outlined),isDense:true),items:const [
+        DropdownMenuItem(value:'all',child:Text('All delivery dates')),
         DropdownMenuItem(value:'today',child:Text('Today')),
         DropdownMenuItem(value:'yesterday',child:Text('Yesterday')),
         DropdownMenuItem(value:'tomorrow',child:Text('Tomorrow')),
@@ -195,21 +274,47 @@ class _OrdersPageState extends State<OrdersPage>{
         DropdownMenuItem(value:'thisMonth',child:Text('This month')),
         DropdownMenuItem(value:'lastMonth',child:Text('Last month')),
       ],onChanged:(v)=>setState(()=>filter=v??'all')),
-      const SizedBox(height:8),TextField(decoration:dec('Search order number'),keyboardType:TextInputType.number,onChanged:(v)=>setState(()=>search=v)),
+      const SizedBox(height:9),
+      DropdownButtonFormField<String>(initialValue:statusFilter,isExpanded:true,decoration:dec('Order status').copyWith(prefixIcon:const Icon(Icons.filter_list_rounded),isDense:true),items:const [
+        DropdownMenuItem(value:'all',child:Text('All statuses')),
+        DropdownMenuItem(value:'placed',child:Text('Placed')),
+        DropdownMenuItem(value:'confirmed',child:Text('Confirmed')),
+        DropdownMenuItem(value:'preparing',child:Text('Preparing')),
+        DropdownMenuItem(value:'out_for_delivery',child:Text('Out for delivery')),
+        DropdownMenuItem(value:'delivered',child:Text('Delivered')),
+        DropdownMenuItem(value:'cancelled',child:Text('Cancelled')),
+      ],onChanged:(v)=>setState(()=>statusFilter=v??'all')),
       const SizedBox(height:12),
-      ...list.map((o){final status=o['status'].toString();final items=List<Map<String,dynamic>>.from(o['order_items']??[]);final address=addr(o);final lat=o['latitude'],lng=o['longitude'];final map=lat is num&&lng is num?'https://www.google.com/maps/dir/?api=1&destination=$lat,$lng':'https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(address)}';final phone=o['customer_phone']?.toString();return Card(child:Padding(padding:const EdgeInsets.all(13),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-        Row(children:[Expanded(child:Text('Order #${o['order_number']}',style:const TextStyle(fontWeight:FontWeight.w800,fontSize:16))),Chip(label:Text(labels[status]??status))]),
-        Text(DateFormat('d MMM yyyy, h:mm a').format(DateTime.parse(o['created_at']).toLocal()),style:const TextStyle(fontSize:11,color:muted)),
-        Text('Delivery: ${o['delivery_date']}',style:const TextStyle(color:green,fontSize:12)),
-        const Divider(),Text('Customer: ${phone??'Phone unavailable'}'),
-        if(phone!=null)TextButton.icon(onPressed:()=>open('tel:$phone'),icon:const Icon(Icons.call),label:const Text('Call customer')),
-        Text('${o['address_label']??'Delivery address'} · $address',style:const TextStyle(fontSize:12)),
-        TextButton.icon(onPressed:()=>open(map),icon:const Icon(Icons.map_outlined),label:const Text('Open in Maps')),
-        ...items.map((i)=>Row(children:[Expanded(child:Text('${i['quantity']} × ${i['product_name']} ${i['product_unit']}',style:const TextStyle(fontSize:12))),Text(orderMoney(((i['unit_price_cents'] as num?)??0)*((i['quantity'] as num?)??0)))])),
-        const Divider(),Row(children:[Expanded(child:Text(o['payment_status']=='paid'?'Paid':'Cash on delivery',style:const TextStyle(color:muted,fontSize:11))),Text(orderMoney(o['total_cents']),style:const TextStyle(fontWeight:FontWeight.w800))]),
-        if(next.containsKey(status))SizedBox(width:double.infinity,child:FilledButton(onPressed:()=>change(o),child:Text(status=='placed'?'Confirm order':status=='confirmed'?'Start preparing':status=='preparing'?'Mark out for delivery':'Mark delivered'))),
-      ])));}),
-      if(list.isEmpty)empty('No orders match this date or search.'),
+      Row(children:[Expanded(child:Text('${list.length} matching orders',style:const TextStyle(fontSize:12,color:muted,fontWeight:FontWeight.w600))),TextButton(onPressed:()=>setState(() { search=''; filter='all'; statusFilter='all'; }),child:const Text('Reset filters'))]),
+      ...list.map((o){
+        final status=o['status'].toString();
+        final items=List<Map<String,dynamic>>.from(o['order_items']??[]);
+        final address=addr(o);
+        final lat=o['latitude'],lng=o['longitude'];
+        final map=lat is num&&lng is num?'https://www.google.com/maps/dir/?api=1&destination=$lat,$lng':'https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(address)}';
+        final phone=o['customer_phone']?.toString();
+        final amount=orderMoney(o['total_cents']);
+        final created=DateTime.tryParse(o['created_at']?.toString()??'');
+        final statusColor=status=='placed'?const Color(0xFFB7791F):status=='confirmed'||status=='preparing'?const Color(0xFF2563A6):status=='out_for_delivery'?green:status=='cancelled'?const Color(0xFFB42318):muted;
+        return Card(margin:const EdgeInsets.only(bottom:9),clipBehavior:Clip.antiAlias,child:ExpansionTile(
+          tilePadding:const EdgeInsets.symmetric(horizontal:14,vertical:5),childrenPadding:const EdgeInsets.fromLTRB(14,0,14,14),
+          leading:Container(width:40,height:40,decoration:BoxDecoration(color:const Color(0xFFEAF2EC),borderRadius:BorderRadius.circular(12)),child:const Icon(Icons.receipt_long_rounded,color:green,size:20)),
+          title:Row(children:[Expanded(child:Text('Order #${o['order_number']}',style:const TextStyle(fontWeight:FontWeight.w800,fontSize:14))),_AdminStatusTag(label:labels[status]??status,active:status=='out_for_delivery'||status=='delivered',color:statusColor)]),
+          subtitle:Padding(padding:const EdgeInsets.only(top:4),child:Text('${created==null?'Date unavailable':DateFormat('d MMM, h:mm a').format(created.toLocal())} · $amount',style:const TextStyle(fontSize:11,color:muted))),
+          children:[
+            Align(alignment:Alignment.centerLeft,child:Text('Delivery date: ${o['delivery_date']??'Not set'}',style:const TextStyle(color:green,fontSize:12,fontWeight:FontWeight.w700))),
+            const Divider(height:18),
+            Row(children:[const Icon(Icons.person_outline,size:17,color:muted),const SizedBox(width:7),Expanded(child:Text(phone??'Customer phone unavailable',style:const TextStyle(fontSize:12,fontWeight:FontWeight.w600))),if(phone!=null)IconButton(visualDensity:VisualDensity.compact,tooltip:'Call customer',onPressed:()=>open('tel:$phone'),icon:const Icon(Icons.call_outlined,color:green))]),
+            Row(crossAxisAlignment:CrossAxisAlignment.start,children:[const Icon(Icons.location_on_outlined,size:17,color:muted),const SizedBox(width:7),Expanded(child:Text('${o['address_label']??'Delivery address'} · $address',style:const TextStyle(fontSize:12,height:1.35))),IconButton(visualDensity:VisualDensity.compact,tooltip:'Open in Maps',onPressed:()=>open(map),icon:const Icon(Icons.map_outlined,color:green))]),
+            const Divider(height:18),
+            ...items.map((i)=>Padding(padding:const EdgeInsets.symmetric(vertical:4),child:Row(children:[Expanded(child:Text('${i['quantity']} × ${i['product_name']} ${i['product_unit']}',style:const TextStyle(fontSize:12))),Text(orderMoney(((i['unit_price_cents'] as num?)??0)*((i['quantity'] as num?)??0)),style:const TextStyle(fontSize:12,fontWeight:FontWeight.w600))]))),
+            const Divider(height:18),
+            Row(children:[Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(o['payment_status']=='paid'?'Paid':'Cash on delivery',style:const TextStyle(fontSize:12,fontWeight:FontWeight.w700)),const Text('Payment',style:TextStyle(fontSize:10,color:muted))])),Text(amount,style:const TextStyle(fontSize:18,fontWeight:FontWeight.w900))]),
+            if(next.containsKey(status))Padding(padding:const EdgeInsets.only(top:12),child:SizedBox(width:double.infinity,child:FilledButton.icon(onPressed:()=>change(o),icon:Icon(status=='placed'?Icons.check_rounded:status=='confirmed'?Icons.soup_kitchen_outlined:status=='preparing'?Icons.local_shipping_outlined:Icons.done_all_rounded),label:Text(status=='placed'?'Confirm order':status=='confirmed'?'Start preparing':status=='preparing'?'Mark out for delivery':'Mark delivered')))),
+          ],
+        ));
+      }),
+      if(list.isEmpty)empty('No orders match the selected filters.'),
     ]));
   }
 }
@@ -262,26 +367,80 @@ class _PacksPageState extends State<PacksPage>{
       if (mounted) toast(context, messageOf(e), error: true);
     }
   }
-  @override Widget build(BuildContext context){if(loading)return const Center(child:CircularProgressIndicator());final p=product;return RefreshIndicator(onRefresh:load,child:ListView(padding:const EdgeInsets.all(16),children:[
-    section('Pack sizes & pricing','Each pack consumes stock from the same physical inventory'),
-    DropdownButtonFormField<String>(initialValue:selected,decoration:dec('Select product'),items:products.map((p)=>DropdownMenuItem(value:p['product_id'].toString(),child:Text(p['name']??'Product'))).toList(),onChanged:choose),
-    if(p!=null)...[
-      const SizedBox(height:14),Card(child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-        Text(editing==null?'Add pack size':'Edit pack size',style:const TextStyle(fontWeight:FontWeight.w800)),
-        const SizedBox(height:8),TextField(controller:name,decoration:dec('Pack name')),const SizedBox(height:8),TextField(controller:label,decoration:dec('Unit label')),
-        const SizedBox(height:8),Row(children:[Expanded(child:TextField(controller:price,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:dec('Price ₹'))),const SizedBox(width:8),Expanded(child:TextField(controller:mrp,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:dec('MRP ₹')))]),
-        const SizedBox(height:8),TextField(controller:consumption,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:dec('Stock consumed per pack (${p['inventory_unit']??'unit'})')),
-        const SizedBox(height:8),Row(children:[Expanded(child:FilledButton(onPressed:busy?null:savePack,child:Text(editing==null?'Add pack':'Save pack'))),if(editing!=null)TextButton(onPressed:()=>setState(reset),child:const Text('Cancel'))]),
-      ]))),
-      Card(child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-        const Text('Shared physical stock',style:TextStyle(fontWeight:FontWeight.w800)),const SizedBox(height:8),
-        Row(children:[Expanded(child:TextField(controller:stock,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:dec('Quantity'))),const SizedBox(width:8),SizedBox(width:110,child:TextField(controller:unit,decoration:dec('Unit')))]),
-        const SizedBox(height:8),SizedBox(width:double.infinity,child:FilledButton.tonal(onPressed:busy?null:saveStock,child:const Text('Update shared stock'))),
-        Text('Sellable: ${p['stock_quantity']??0} default packs · Physical: ${p['inventory_quantity']??0} ${p['inventory_unit']??'unit'}',style:const TextStyle(fontSize:11,color:muted)),
-      ]))),
-      section('Available pack options','${packs.length} variants'),
-      ...packs.map((v)=>Card(child:ListTile(title:Text(v['variant_name']??'Pack'),subtitle:Text('${v['unit_label']} · ${money((v['price'] as num?)?.toDouble())} · consumes ${v['inventory_quantity_per_pack']} ${p['inventory_unit']??'unit'}'),trailing:PopupMenuButton<String>(onSelected:(a){if(a=='edit'){edit(v);}else{toggle(v);}},itemBuilder:(_)=>[const PopupMenuItem(value:'edit',child:Text('Edit')),PopupMenuItem(value:'toggle',child:Text(v['is_active']==true?'Disable':'Enable'))])))),
-    ],if(products.isEmpty)empty('Add products before configuring pack sizes.')]));
+  @override Widget build(BuildContext context){
+    if(loading)return const Center(child:CircularProgressIndicator());
+    final p=product;
+    final activePacks=packs.where((v)=>v['is_active']==true).length;
+    return RefreshIndicator(onRefresh:load,child:ListView(padding:const EdgeInsets.fromLTRB(16,16,16,28),children:[
+      section('Pack sizes & pricing','Create selling options that draw from one shared stock balance'),
+      Row(children:[
+        Expanded(child:_AdminStatCard(label:'Products',value:'${products.length}',icon:Icons.inventory_2_outlined)),
+        const SizedBox(width:9),
+        Expanded(child:_AdminStatCard(label:'Pack options',value:'${variants.length}',icon:Icons.widgets_outlined,accent:true)),
+      ]),
+      const SizedBox(height:14),
+      DropdownButtonFormField<String>(initialValue:selected,isExpanded:true,decoration:dec('Choose a product').copyWith(prefixIcon:const Icon(Icons.inventory_2_outlined)),items:products.map((item)=>DropdownMenuItem(value:item['product_id'].toString(),child:Text(item['name']??'Product'))).toList(),onChanged:choose),
+      if(p!=null)...[
+        const SizedBox(height:13),
+        Card(child:Padding(padding:const EdgeInsets.all(15),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+          Row(children:[const Expanded(child:Text('Shared inventory',style:TextStyle(fontSize:15,fontWeight:FontWeight.w800))),_AdminStatusTag(label:'Live stock',active:true)]),
+          const SizedBox(height:4),
+          const Text('All pack sizes consume from this physical quantity.',style:TextStyle(fontSize:11,color:muted)),
+          const SizedBox(height:14),
+          Row(crossAxisAlignment:CrossAxisAlignment.end,children:[
+            Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+              Text('${p['inventory_quantity']??0}',style:const TextStyle(fontSize:28,fontWeight:FontWeight.w900,height:1)),
+              Text('Physical stock · ${p['inventory_unit']??'unit'}',style:const TextStyle(fontSize:11,color:muted)),
+            ])),
+            Column(crossAxisAlignment:CrossAxisAlignment.end,children:[
+              Text('${p['stock_quantity']??0}',style:const TextStyle(fontSize:21,fontWeight:FontWeight.w800,color:green)),
+              const Text('Default packs sellable',style:TextStyle(fontSize:10,color:muted)),
+            ]),
+          ]),
+          const Divider(height:24),
+          Row(children:[
+            Expanded(child:TextField(controller:stock,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:dec('Physical quantity'))),
+            const SizedBox(width:9),
+            SizedBox(width:105,child:TextField(controller:unit,decoration:dec('Unit'))),
+          ]),
+          const SizedBox(height:10),
+          SizedBox(width:double.infinity,child:FilledButton.tonalIcon(onPressed:busy?null:saveStock,icon:const Icon(Icons.save_outlined),label:const Text('Update shared stock'))),
+        ]))),
+        Card(child:Padding(padding:const EdgeInsets.all(15),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+          Row(children:[Expanded(child:Text(editing==null?'Create a pack option':'Edit pack option',style:const TextStyle(fontSize:15,fontWeight:FontWeight.w800))),if(editing!=null)TextButton(onPressed:()=>setState(reset),child:const Text('Cancel'))]),
+          const SizedBox(height:4),
+          const Text('Set the customer-facing pack name, price and stock consumption.',style:TextStyle(fontSize:11,color:muted)),
+          const SizedBox(height:13),
+          TextField(controller:name,decoration:dec('Pack name')),
+          const SizedBox(height:9),
+          TextField(controller:label,decoration:dec('Unit label')),
+          const SizedBox(height:9),
+          Row(children:[
+            Expanded(child:TextField(controller:price,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:dec('Selling price ₹'))),
+            const SizedBox(width:9),
+            Expanded(child:TextField(controller:mrp,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:dec('MRP ₹'))),
+          ]),
+          const SizedBox(height:9),
+          TextField(controller:consumption,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:dec('Stock consumed per pack (${p['inventory_unit']??'unit'})')),
+          const SizedBox(height:12),
+          SizedBox(width:double.infinity,child:FilledButton.icon(onPressed:busy?null:savePack,icon:Icon(editing==null?Icons.add_rounded:Icons.save_outlined),label:Text(busy?'Saving…':editing==null?'Add pack option':'Save changes'))),
+        ]))),
+        Row(children:[Expanded(child:section('Pack options','${packs.length} configured · $activePacks enabled'))]),
+        if(packs.isEmpty)empty('No pack sizes yet. Add the first option above.'),
+        ...packs.map((v){
+          final enabled=v['is_active']==true;
+          return Card(margin:const EdgeInsets.only(bottom:8),child:ListTile(
+            contentPadding:const EdgeInsets.symmetric(horizontal:13,vertical:5),
+            leading:Container(width:42,height:42,decoration:BoxDecoration(color:const Color(0xFFEAF2EC),borderRadius:BorderRadius.circular(12)),child:const Icon(Icons.inventory_2_outlined,color:green)),
+            title:Text(v['variant_name']??'Pack',style:const TextStyle(fontSize:14,fontWeight:FontWeight.w800)),
+            subtitle:Padding(padding:const EdgeInsets.only(top:4),child:Text('${v['unit_label']} · ${money((v['price'] as num?)?.toDouble())} · consumes ${v['inventory_quantity_per_pack']} ${p['inventory_unit']??'unit'}',style:const TextStyle(fontSize:11,color:muted))),
+            trailing:PopupMenuButton<String>(onSelected:(action){if(action=='edit'){edit(v);}else{toggle(v);}},itemBuilder:(_)=>[const PopupMenuItem(value:'edit',child:Text('Edit pack')),PopupMenuItem(value:'toggle',child:Text(enabled?'Disable':'Enable'))]),
+          ));
+        }),
+        const Card(child:ListTile(leading:Icon(Icons.info_outline,color:green),title:Text('Shared stock protection'),subtitle:Text('Every enabled pack option consumes from the same physical inventory.'))),
+      ],
+      if(products.isEmpty)empty('Add products before configuring pack sizes.'),
+    ]));
   }
 }
 
@@ -292,13 +451,42 @@ class _ShopPageState extends State<ShopPage>{
   @override void dispose(){message.dispose();super.dispose();}
   Future<void> load()async{setState(()=>loading=true);try{final r=await db.from('shop_settings').select('is_open,closed_message,accepting_online_orders').eq('id',1).single();open=r['is_open']==true;online=r['accepting_online_orders']==true;message.text=r['closed_message']?.toString()??message.text;}catch(e){if(mounted)toast(context,messageOf(e),error:true);}if(mounted)setState(()=>loading=false);}
   Future<void> save({bool? isOpen,bool? isOnline})async{setState(()=>saving=true);try{final data=<String,dynamic>{'updated_at':DateTime.now().toUtc().toIso8601String()};if(isOpen!=null)data['is_open']=isOpen;if(isOnline!=null)data['accepting_online_orders']=isOnline;if(isOpen==null&&isOnline==null)data['closed_message']=message.text.trim();await db.from('shop_settings').update(data).eq('id',1);if(isOpen!=null)open=isOpen;if(isOnline!=null)online=isOnline;if(mounted)toast(context,'Shop settings saved.');}catch(e){if(mounted)toast(context,messageOf(e),error:true);}if(mounted)setState(()=>saving=false);}
-  @override Widget build(BuildContext context){if(loading)return const Center(child:CircularProgressIndicator());return RefreshIndicator(onRefresh:load,child:ListView(padding:const EdgeInsets.all(16),children:[
-    section('Shop settings','Manage shop availability and checkout separately'),
-    Card(child:SwitchListTile(value:open,onChanged:saving?null:(v)=>save(isOpen:v),activeThumbColor:green,title:Text(open?'Shop is open':'Shop is closed',style:const TextStyle(fontWeight:FontWeight.w800)),subtitle:Text(open?'Customers can browse and place COD orders.':'Browsing remains available; checkout is paused.'),secondary:const Icon(Icons.storefront,color:green))),
-    Card(child:SwitchListTile(value:online,onChanged:saving?null:(v)=>save(isOnline:v),activeThumbColor:green,title:Text(online?'Online orders enabled':'Online orders disabled',style:const TextStyle(fontWeight:FontWeight.w800)),subtitle:const Text('Controls the existing accepting_online_orders setting.'),secondary:const Icon(Icons.shopping_bag_outlined,color:green))),
-    Card(child:Padding(padding:const EdgeInsets.all(16),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('Checkout unavailable message',style:TextStyle(fontWeight:FontWeight.w800)),const SizedBox(height:8),TextField(controller:message,maxLength:220,maxLines:4,decoration:dec('Customer-facing message')),SizedBox(width:double.infinity,child:FilledButton(onPressed:saving||message.text.trim().isEmpty?null:()=>save(),child:const Text('Save message')))]))),
-    const Padding(padding:EdgeInsets.all(12),child:Text('Closing the shop affects new checkout only. Existing orders are not changed.',style:TextStyle(fontSize:12,color:muted))),
-  ]));}
+  @override Widget build(BuildContext context){
+    if(loading)return const Center(child:CircularProgressIndicator());
+    return RefreshIndicator(onRefresh:load,child:ListView(padding:const EdgeInsets.fromLTRB(16,16,16,28),children:[
+      section('Shop settings','Control store availability and customer checkout'),
+      Container(padding:const EdgeInsets.all(18),decoration:BoxDecoration(borderRadius:BorderRadius.circular(22),gradient:LinearGradient(begin:Alignment.topLeft,end:Alignment.bottomRight,colors:open?[const Color(0xFF174C32),const Color(0xFF28764D)]:[const Color(0xFF424B45),const Color(0xFF68736B)])),child:Row(children:[
+        Container(width:48,height:48,decoration:BoxDecoration(color:Colors.white.withValues(alpha:.14),borderRadius:BorderRadius.circular(15)),child:Icon(open?Icons.storefront_rounded:Icons.storefront_outlined,color:Colors.white,size:25)),
+        const SizedBox(width:13),
+        Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+          Text(open?'Your shop is open':'Your shop is closed',style:const TextStyle(color:Colors.white,fontSize:18,fontWeight:FontWeight.w900)),
+          const SizedBox(height:4),
+          Text(online?'Online checkout is enabled':'Online checkout is paused',style:const TextStyle(color:Color(0xFFDCEBE1),fontSize:11)),
+        ])),
+        IconButton(onPressed:load,tooltip:'Refresh settings',icon:const Icon(Icons.refresh_rounded,color:Colors.white)),
+      ])),
+      const SizedBox(height:16),
+      const Text('Store availability',style:TextStyle(fontSize:16,fontWeight:FontWeight.w800)),
+      const SizedBox(height:8),
+      Card(child:SwitchListTile(value:open,onChanged:saving?null:(value)=>save(isOpen:value),activeThumbColor:green,secondary:Container(width:40,height:40,decoration:BoxDecoration(color:const Color(0xFFEAF2EC),borderRadius:BorderRadius.circular(12)),child:const Icon(Icons.storefront_outlined,color:green)),title:Text(open?'Shop is open':'Shop is closed',style:const TextStyle(fontWeight:FontWeight.w800,fontSize:14)),subtitle:Text(open?'Customers can browse and place COD orders.':'Browsing remains available; checkout is paused.',style:const TextStyle(fontSize:11,color:muted)))),
+      const SizedBox(height:14),
+      const Text('Online ordering',style:TextStyle(fontSize:16,fontWeight:FontWeight.w800)),
+      const SizedBox(height:8),
+      Card(child:SwitchListTile(value:online,onChanged:saving?null:(value)=>save(isOnline:value),activeThumbColor:green,secondary:Container(width:40,height:40,decoration:BoxDecoration(color:const Color(0xFFEAF1FA),borderRadius:BorderRadius.circular(12)),child:const Icon(Icons.shopping_bag_outlined,color:Color(0xFF2563A6))),title:Text(online?'Orders are being accepted':'Orders are paused',style:const TextStyle(fontWeight:FontWeight.w800,fontSize:14)),subtitle:const Text('Controls the existing accepting_online_orders setting.',style:TextStyle(fontSize:11,color:muted)))),
+      const SizedBox(height:14),
+      Card(child:Padding(padding:const EdgeInsets.all(16),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+        const Row(children:[Icon(Icons.message_outlined,color:green),SizedBox(width:8),Expanded(child:Text('Checkout unavailable message',style:TextStyle(fontSize:15,fontWeight:FontWeight.w800)))]),
+        const SizedBox(height:5),
+        const Text('Shown to customers when checkout is unavailable.',style:TextStyle(fontSize:11,color:muted)),
+        const SizedBox(height:12),
+        TextField(controller:message,maxLength:220,maxLines:4,onChanged:(_)=>setState(() {}),decoration:dec('Customer-facing message')),
+        const SizedBox(height:8),
+        SizedBox(width:double.infinity,child:FilledButton.icon(onPressed:saving||message.text.trim().isEmpty?null:()=>save(),icon:const Icon(Icons.save_outlined),label:Text(saving?'Saving…':'Save message'))),
+      ]))),
+      const SizedBox(height:8),
+      const Card(child:ListTile(leading:Icon(Icons.shield_outlined,color:green),title:Text('Existing orders are safe'),subtitle:Text('Closing the shop or pausing checkout only affects new orders. Existing customer orders are not changed.'))),
+    ]));
+  }
 }
 
 class DeliveryPage extends StatelessWidget{

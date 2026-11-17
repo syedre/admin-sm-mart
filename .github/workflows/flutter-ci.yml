@@ -16,5 +16,7 @@ jobs:
         with:
           channel: stable
           cache: true
+      - name: Prepare local config asset for analysis
+        run: touch .env
       - run: flutter pub get
       - run: flutter analyze
