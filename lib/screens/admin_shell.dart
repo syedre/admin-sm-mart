@@ -2,6 +2,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../app.dart';
+import 'admin_features.dart';
 
 class AdminShell extends StatefulWidget {
   const AdminShell({super.key});
@@ -45,11 +46,11 @@ class _AdminShellState extends State<AdminShell> {
         index: _index,
         children: const [
           _OverviewPage(),
-          _FeaturePlaceholder(title: 'Catalogue', detail: 'Products, categories, images and visibility management.'),
-          _FeaturePlaceholder(title: 'Orders', detail: 'Customer orders, date filters, contact details and status transitions.'),
-          _FeaturePlaceholder(title: 'Pack sizes', detail: 'Variant pricing and shared physical inventory.'),
-          _FeaturePlaceholder(title: 'Delivery', detail: 'Delivery partner assignments and live sessions. Firebase Admin credentials remain server-side.'),
-          _FeaturePlaceholder(title: 'Shop settings', detail: 'Shop open/closed state, online-order availability and customer closure message.'),
+          CataloguePage(),
+          OrdersPage(),
+          PacksPage(),
+          DeliveryPage(),
+          ShopPage(),
         ],
       ),
       bottomNavigationBar: NavigationBar(
