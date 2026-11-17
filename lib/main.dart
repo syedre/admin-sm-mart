@@ -30,7 +30,7 @@ Future<void> main() async {
   if (configured) {
     try {
       await AdminPushNotifications.initialize(
-        apiBaseUrl: const String.fromEnvironment('ADMIN_PUSH_API_URL'),
+        apiBaseUrl: dotenv.env['ADMIN_PUSH_API_URL']?.trim() ?? '',
       );
     } catch (error) {
       debugPrint('SM mart Admin push notifications could not be initialized: $error');
