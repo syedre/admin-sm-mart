@@ -21,6 +21,8 @@ class _MobileDeliveryPageState extends State<MobileDeliveryPage> {
   List<Map<String, dynamic>> _partners = [];
   Map<String, dynamic> _assignments = {};
   final Set<String> _busyOrders = {};
+  String _search = '';
+  String _assignmentFilter = 'all';
 
   @override
   void initState() { super.initState(); _load(); }
@@ -100,17 +102,44 @@ class _MobileDeliveryPageState extends State<MobileDeliveryPage> {
   @override
   Widget build(BuildContext context) {
     if (_loading && _orders.isEmpty && _error == null) return const Center(child: CircularProgressIndicator());
+    final query = _search.trim().toLowerCase();
+    final visibleOrders = _orders.where((order) {
+      final id = order['id'].toString();
+      final raw = _assignments[id];
+      final assigned = raw is Map && raw['partnerUid'] != null;
+      final matchesAssignment = _assignmentFilter == 'all' ||
+          (_assignmentFilter == 'assigned' && assigned) ||
+          (_assignmentFilter == 'unassigned' && !assigned);
+      final searchable = '${order['order_number']} ${_address(order)}'.toLowerCase();
+      return matchesAssignment && (query.isEmpty || searchable.contains(query));
+    }).toList();
+    final assignedCount = _orders.where((order) {
+      final raw = _assignments[order['id'].toString()];
+      return raw is Map && raw['partnerUid'] != null;
+    }).length;
     return RefreshIndicator(
       onRefresh: _load,
-      child: ListView(padding: const EdgeInsets.all(16), children: [
-        Row(children: [
-          const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Delivery operations', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
-            SizedBox(height: 4),
-            Text('Assign eligible orders to active delivery partners.', style: TextStyle(color: _deliveryMuted, fontSize: 12)),
-          ])),
-          IconButton(onPressed: _loading ? null : _load, icon: const Icon(Icons.refresh), tooltip: 'Refresh'),
-        ]),
+      child: ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 28), children: [
+        Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(22),
+            gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+              colors: [Color(0xFF174C32), Color(0xFF28764D)]),
+          ),
+          child: Row(children: [
+            Container(width: 46, height: 46,
+              decoration: BoxDecoration(color: Colors.white.withValues(alpha: .14), borderRadius: BorderRadius.circular(14)),
+              child: const Icon(Icons.local_shipping_rounded, color: Colors.white, size: 24)),
+            const SizedBox(width: 12),
+            const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Delivery operations', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900)),
+              SizedBox(height: 4),
+              Text('Assign eligible orders to active partners.', style: TextStyle(color: Color(0xFFDCEBE1), fontSize: 11)),
+            ])),
+            IconButton(onPressed: _loading ? null : _load, icon: const Icon(Icons.refresh_rounded, color: Colors.white), tooltip: 'Refresh'),
+          ]),
+        ),
         if (_error != null) Card(
           color: const Color(0xFFFFF1F0),
           child: Padding(padding: const EdgeInsets.all(14), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -122,18 +151,43 @@ class _MobileDeliveryPageState extends State<MobileDeliveryPage> {
             Align(alignment: Alignment.centerRight, child: TextButton(onPressed: _load, child: const Text('Retry'))),
           ])),
         ),
+        const SizedBox(height: 14),
         Row(children: [
           Expanded(child: _Metric(label: 'Active partners', value: '${_partners.length}', icon: Icons.people_alt_outlined)),
           const SizedBox(width: 8),
-          Expanded(child: _Metric(label: 'Orders to assign', value: '${_orders.length}', icon: Icons.local_shipping_outlined)),
+          Expanded(child: _Metric(label: 'Awaiting assignment', value: '${_orders.length - assignedCount}', icon: Icons.assignment_late_outlined)),
+          const SizedBox(width: 8),
+          Expanded(child: _Metric(label: 'Assigned', value: '$assignedCount', icon: Icons.assignment_turned_in_outlined)),
         ]),
         const SizedBox(height: 16),
-        Text('Out for delivery · ${_orders.length}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+        TextField(
+          decoration: const InputDecoration(
+            prefixIcon: Icon(Icons.search_rounded),
+            hintText: 'Search order or delivery address',
+            isDense: true,
+          ),
+          onChanged: (value) => setState(() => _search = value),
+        ),
+        const SizedBox(height: 9),
+        Wrap(spacing: 8, children: [
+          ChoiceChip(label: const Text('All'), selected: _assignmentFilter == 'all', onSelected: (_) => setState(() => _assignmentFilter = 'all')),
+          ChoiceChip(label: const Text('Assigned'), selected: _assignmentFilter == 'assigned', onSelected: (_) => setState(() => _assignmentFilter = 'assigned')),
+          ChoiceChip(label: const Text('Unassigned'), selected: _assignmentFilter == 'unassigned', onSelected: (_) => setState(() => _assignmentFilter = 'unassigned')),
+        ]),
+        const SizedBox(height: 8),
+        Row(children: [
+          Expanded(child: Text('Out for delivery · ${visibleOrders.length}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800))),
+          Text('${_orders.length} total', style: const TextStyle(fontSize: 11, color: _deliveryMuted)),
+        ]),
         if (_orders.isEmpty && _error == null)
           const Padding(padding: EdgeInsets.symmetric(vertical: 32), child: Center(
             child: Text('No orders are currently marked Out for Delivery.', style: TextStyle(color: _deliveryMuted)),
           )),
-        ..._orders.map((order) {
+        if (_orders.isNotEmpty && visibleOrders.isEmpty)
+          const Padding(padding: EdgeInsets.symmetric(vertical: 24), child: Center(
+            child: Text('No orders match this search or filter.', style: TextStyle(color: _deliveryMuted)),
+          )),
+        ...visibleOrders.map((order) {
           final id = order['id'].toString();
           final raw = _assignments[id];
           final assignment = raw is Map ? Map<String, dynamic>.from(raw) : null;
