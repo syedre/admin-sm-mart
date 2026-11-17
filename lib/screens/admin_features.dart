@@ -111,7 +111,7 @@ class _ProductEditorState extends State<ProductEditor>{
 
 class OrdersPage extends StatefulWidget{const OrdersPage({super.key});@override State<OrdersPage> createState()=>_OrdersPageState();}
 class _OrdersPageState extends State<OrdersPage>{
-  bool loading=true;String search='',filter='today';List<Map<String,dynamic>> orders=[];
+  bool loading=true;String search='',filter='all';List<Map<String,dynamic>> orders=[];
   final labels={'placed':'Placed','confirmed':'Confirmed','preparing':'Preparing','out_for_delivery':'Out for delivery','delivered':'Delivered','cancelled':'Cancelled'};
   final next={'placed':'confirmed','confirmed':'preparing','preparing':'out_for_delivery','out_for_delivery':'delivered'};
   String get today=>DateFormat('yyyy-MM-dd').format(DateTime.now().toUtc().add(const Duration(hours:5,minutes:30)));
@@ -148,12 +148,53 @@ class _OrdersPageState extends State<OrdersPage>{
   String addr(Map<String,dynamic> o)=>[o['address_line'],o['apartment'],o['landmark']==null?null:'near ${o['landmark']}',o['city'],o['state'],o['postal_code']].where((x)=>x!=null&&x.toString().isNotEmpty).join(', ');
   @override Widget build(BuildContext context){
     final q=search.trim().replaceFirst('#','').replaceAll(RegExp(r'\s+'),'');
-    final date=filter=='today'?today:filter=='tomorrow'?shift(1):filter=='dayAfterTomorrow'?shift(2):shift(-1);
-    final list=orders.where((o)=>q.isNotEmpty?o['order_number'].toString().contains(q):o['delivery_date']==date).toList();
+    final todayDate = DateTime.parse(today);
+    bool matchesDeliveryDate(Map<String,dynamic> order) {
+      if (filter == 'all') return true;
+      final raw = order['delivery_date']?.toString();
+      if (raw == null || raw.length < 10) return false;
+      final parsed = DateTime.tryParse(raw.substring(0, 10));
+      if (parsed == null) return false;
+      final deliveryDay = DateTime(parsed.year, parsed.month, parsed.day);
+      switch (filter) {
+        case 'today':
+          return deliveryDay == todayDate;
+        case 'tomorrow':
+          return deliveryDay == todayDate.add(const Duration(days: 1));
+        case 'dayAfterTomorrow':
+          return deliveryDay == todayDate.add(const Duration(days: 2));
+        case 'yesterday':
+          return deliveryDay == todayDate.subtract(const Duration(days: 1));
+        case 'last7Days':
+          return !deliveryDay.isBefore(todayDate.subtract(const Duration(days: 6))) && !deliveryDay.isAfter(todayDate);
+        case 'last30Days':
+          return !deliveryDay.isBefore(todayDate.subtract(const Duration(days: 29))) && !deliveryDay.isAfter(todayDate);
+        case 'thisMonth':
+          return deliveryDay.year == todayDate.year && deliveryDay.month == todayDate.month;
+        case 'lastMonth':
+          final lastMonth = DateTime(todayDate.year, todayDate.month - 1);
+          return deliveryDay.year == lastMonth.year && deliveryDay.month == lastMonth.month;
+        default:
+          return false;
+      }
+    }
+    final list=orders.where((o)=>q.isNotEmpty
+      ? o['order_number'].toString().contains(q)
+      : matchesDeliveryDate(o)).toList();
     if(loading)return const Center(child:CircularProgressIndicator());
     return RefreshIndicator(onRefresh:load,child:ListView(padding:const EdgeInsets.all(16),children:[
       section('Customer orders','${orders.length} total · ${orders.where((o)=>!['delivered','cancelled'].contains(o['status'])).length} active'),
-      DropdownButtonFormField<String>(initialValue:filter,decoration:dec('Delivery date'),items:const [DropdownMenuItem(value:'today',child:Text('Today')),DropdownMenuItem(value:'tomorrow',child:Text('Tomorrow')),DropdownMenuItem(value:'dayAfterTomorrow',child:Text('Day after tomorrow')),DropdownMenuItem(value:'yesterday',child:Text('Yesterday'))],onChanged:(v)=>setState(()=>filter=v??'today')),
+      DropdownButtonFormField<String>(initialValue:filter,decoration:dec('Delivery date'),items:const [
+        DropdownMenuItem(value:'all',child:Text('All Orders')),
+        DropdownMenuItem(value:'today',child:Text('Today')),
+        DropdownMenuItem(value:'yesterday',child:Text('Yesterday')),
+        DropdownMenuItem(value:'tomorrow',child:Text('Tomorrow')),
+        DropdownMenuItem(value:'dayAfterTomorrow',child:Text('Day after tomorrow')),
+        DropdownMenuItem(value:'last7Days',child:Text('Last 7 days')),
+        DropdownMenuItem(value:'last30Days',child:Text('Last 30 days')),
+        DropdownMenuItem(value:'thisMonth',child:Text('This month')),
+        DropdownMenuItem(value:'lastMonth',child:Text('Last month')),
+      ],onChanged:(v)=>setState(()=>filter=v??'all')),
       const SizedBox(height:8),TextField(decoration:dec('Search order number'),keyboardType:TextInputType.number,onChanged:(v)=>setState(()=>search=v)),
       const SizedBox(height:12),
       ...list.map((o){final status=o['status'].toString();final items=List<Map<String,dynamic>>.from(o['order_items']??[]);final address=addr(o);final lat=o['latitude'],lng=o['longitude'];final map=lat is num&&lng is num?'https://www.google.com/maps/dir/?api=1&destination=$lat,$lng':'https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(address)}';final phone=o['customer_phone']?.toString();return Card(child:Padding(padding:const EdgeInsets.all(13),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
