@@ -8,10 +8,12 @@ Future<void> main() async {
 
   const supabaseUrl = String.fromEnvironment('SUPABASE_URL');
   const supabaseKey = String.fromEnvironment('SUPABASE_PUBLISHABLE_KEY');
+  var configured = false;
 
   if (supabaseUrl.isNotEmpty && supabaseKey.isNotEmpty) {
     await Supabase.initialize(url: supabaseUrl, anonKey: supabaseKey);
+    configured = true;
   }
 
-  runApp(const SmMartAdminApp());
+  runApp(SmMartAdminApp(configured: configured));
 }
