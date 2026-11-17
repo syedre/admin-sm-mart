@@ -5,14 +5,15 @@ import 'screens/admin_shell.dart';
 import 'screens/login_screen.dart';
 
 class SmMartAdminApp extends StatelessWidget {
-  const SmMartAdminApp({super.key});
+  const SmMartAdminApp({super.key, required this.configured});
+
+  final bool configured;
 
   static const brandGreen = Color(0xFF246B45);
   static const pageBackground = Color(0xFFFAF8F3);
 
   @override
   Widget build(BuildContext context) {
-    final configured = Supabase.instance.isInitialized;
     return MaterialApp(
       title: 'SM mart Admin',
       debugShowCheckedModeBanner: false,
