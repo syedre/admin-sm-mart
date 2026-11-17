@@ -76,9 +76,11 @@ class _MobileDeliveryPageState extends State<MobileDeliveryPage> {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Delivery assignment removed.')));
       await _load();
     } catch (error) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString()), backgroundColor: Colors.red),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error.toString()), backgroundColor: Colors.red),
+        );
+      }
     } finally {
       if (mounted) setState(() => _busyOrders.remove(id));
     }
