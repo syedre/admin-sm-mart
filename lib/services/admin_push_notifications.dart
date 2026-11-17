@@ -124,7 +124,7 @@ class AdminPushNotifications {
   }
 
   static Future<void> _registerCurrentDevice() async {
-    if (_apiBaseUrl.isEmpty || !Platform.isAndroid && !Platform.isIOS) return;
+    if (_apiBaseUrl.isEmpty || (!Platform.isAndroid && !Platform.isIOS)) return;
     final user = Supabase.instance.client.auth.currentUser;
     final session = Supabase.instance.client.auth.currentSession;
     if (user?.email?.trim().toLowerCase() != 'admin@gmail.com' ||
@@ -132,24 +132,45 @@ class AdminPushNotifications {
       return;
     }
 
-    final settings = await FirebaseMessaging.instance.requestPermission(
-      alert: true,
-      badge: true,
-      sound: true,
-    );
-    if (settings.authorizationStatus != AuthorizationStatus.authorized &&
-        settings.authorizationStatus != AuthorizationStatus.provisional) {
-      return;
-    }
+    try {
+      final messaging = FirebaseMessaging.instance;
+      final settings = await messaging.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+      if (settings.authorizationStatus != AuthorizationStatus.authorized &&
+          settings.authorizationStatus != AuthorizationStatus.provisional) {
+        return;
+      }
 
-    final token = await FirebaseMessaging.instance.getToken();
-    if (token == null || token.isEmpty) return;
-    await _sendToken(
-      token: token,
-      accessToken: session.accessToken,
-      platform: Platform.isIOS ? 'ios' : 'android',
-      remove: false,
-    );
+      // On iOS, Firebase cannot issue an FCM token until iOS has supplied
+      // the APNs device token. Give APNs time to register before getToken().
+      if (Platform.isIOS) {
+        String? apnsToken;
+        for (var attempt = 0; attempt < 15; attempt++) {
+          apnsToken = await messaging.getAPNSToken();
+          if (apnsToken != null && apnsToken.isNotEmpty) break;
+          await Future<void>.delayed(const Duration(seconds: 1));
+        }
+        if (apnsToken == null || apnsToken.isEmpty) {
+          print('SM mart Admin: APNs token is not available; FCM registration will retry later.');
+          return;
+        }
+      }
+
+      final token = await messaging.getToken();
+      if (token == null || token.isEmpty) return;
+      await _sendToken(
+        token: token,
+        accessToken: session.accessToken,
+        platform: Platform.isIOS ? 'ios' : 'android',
+        remove: false,
+      );
+    } catch (error) {
+      // Push setup must never prevent the admin app or sign-in flow from working.
+      print('SM mart Admin push-token registration failed: $error');
+    }
   }
 
   static Future<void> unregisterCurrentDevice() async {
