@@ -16,9 +16,11 @@ class DeliveryApi {
   final http.Client _client;
 
   Uri _endpoint() {
-    final base = dotenv.env['ADMIN_API_BASE_URL']?.trim() ?? '';
+    final base = dotenv.env['ADMIN_API_BASE_URL']?.trim().isNotEmpty == true
+        ? dotenv.env['ADMIN_API_BASE_URL']!.trim()
+        : 'https://admin-api.yameentraders.ink';
     if (base.isEmpty) {
-      throw DeliveryApiException('Set ADMIN_API_BASE_URL in your local .env file.');
+      throw DeliveryApiException('The SM mart Admin API URL is not configured.');
     }
     final normalized = base.endsWith('/') ? base.substring(0, base.length - 1) : base;
     return Uri.parse('$normalized/api/mobile/delivery');
