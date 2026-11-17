@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app.dart';
@@ -11,7 +11,7 @@ Future<void> main() async {
   var configured = false;
 
   if (supabaseUrl.isNotEmpty && supabaseKey.isNotEmpty) {
-    await Supabase.initialize(url: supabaseUrl, anonKey: supabaseKey);
+    await Supabase.initialize(url: supabaseUrl, publishableKey: supabaseKey);
     configured = true;
   }
 
