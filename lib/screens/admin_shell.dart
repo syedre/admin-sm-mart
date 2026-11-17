@@ -46,7 +46,7 @@ class _AdminShellState extends State<AdminShell> {
       ),
       body: IndexedStack(
         index: _index,
-        children: const [
+        children: [
           _OverviewPage(),
           CataloguePage(),
           OrdersPage(key: ValueKey(_ordersRefreshKey)),
