@@ -21,6 +21,37 @@ Widget section(String title, String note) => Padding(padding: const EdgeInsets.o
 ]));
 Widget empty(String text) => Padding(padding: const EdgeInsets.all(28), child: Center(child: Text(text, textAlign: TextAlign.center, style: const TextStyle(color: muted))));
 
+
+class _AdminStatCard extends StatelessWidget {
+  const _AdminStatCard({required this.label,required this.value,required this.icon,this.accent=false});
+  final String label,value;
+  final IconData icon;
+  final bool accent;
+  @override
+  Widget build(BuildContext context)=>Card(child:Padding(padding:const EdgeInsets.all(12),child:Row(children:[
+    Container(width:34,height:34,decoration:BoxDecoration(color:accent?const Color(0xFFE8F2EB):const Color(0xFFF1F2EE),borderRadius:BorderRadius.circular(11)),child:Icon(icon,size:18,color:green)),
+    const SizedBox(width:9),
+    Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+      Text(value,style:const TextStyle(fontSize:18,fontWeight:FontWeight.w900,height:1.1)),
+      const SizedBox(height:3),
+      Text(label,maxLines:1,overflow:TextOverflow.ellipsis,style:const TextStyle(fontSize:10,color:muted,fontWeight:FontWeight.w600)),
+    ])),
+  ])));
+  }
+}
+
+class _AdminStatusTag extends StatelessWidget {
+  const _AdminStatusTag({required this.label,required this.active,this.color});
+  final String label;
+  final bool active;
+  final Color? color;
+  @override
+  Widget build(BuildContext context){
+    final tint=color??(active?green:muted);
+    return Container(padding:const EdgeInsets.symmetric(horizontal:8,vertical:4),decoration:BoxDecoration(color:tint.withValues(alpha:.10),borderRadius:BorderRadius.circular(20)),child:Text(label,style:TextStyle(color:tint,fontSize:10,fontWeight:FontWeight.w800)));
+  }
+}
+
 class CataloguePage extends StatefulWidget { const CataloguePage({super.key}); @override State<CataloguePage> createState()=>_CataloguePageState(); }
 class _CataloguePageState extends State<CataloguePage> {
   bool loading=true; String search='', categoryFilter='all', visibilityFilter='all'; List<Map<String,dynamic>> products=[], categories=[], homes=[];
@@ -341,26 +372,82 @@ class _PacksPageState extends State<PacksPage>{
       if (mounted) toast(context, messageOf(e), error: true);
     }
   }
-  @override Widget build(BuildContext context){if(loading)return const Center(child:CircularProgressIndicator());final p=product;return RefreshIndicator(onRefresh:load,child:ListView(padding:const EdgeInsets.all(16),children:[
-    section('Pack sizes & pricing','Each pack consumes stock from the same physical inventory'),
-    DropdownButtonFormField<String>(initialValue:selected,decoration:dec('Select product'),items:products.map((p)=>DropdownMenuItem(value:p['product_id'].toString(),child:Text(p['name']??'Product'))).toList(),onChanged:choose),
-    if(p!=null)...[
-      const SizedBox(height:14),Card(child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-        Text(editing==null?'Add pack size':'Edit pack size',style:const TextStyle(fontWeight:FontWeight.w800)),
-        const SizedBox(height:8),TextField(controller:name,decoration:dec('Pack name')),const SizedBox(height:8),TextField(controller:label,decoration:dec('Unit label')),
-        const SizedBox(height:8),Row(children:[Expanded(child:TextField(controller:price,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:dec('Price ₹'))),const SizedBox(width:8),Expanded(child:TextField(controller:mrp,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:dec('MRP ₹')))]),
-        const SizedBox(height:8),TextField(controller:consumption,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:dec('Stock consumed per pack (${p['inventory_unit']??'unit'})')),
-        const SizedBox(height:8),Row(children:[Expanded(child:FilledButton(onPressed:busy?null:savePack,child:Text(editing==null?'Add pack':'Save pack'))),if(editing!=null)TextButton(onPressed:()=>setState(reset),child:const Text('Cancel'))]),
-      ]))),
-      Card(child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-        const Text('Shared physical stock',style:TextStyle(fontWeight:FontWeight.w800)),const SizedBox(height:8),
-        Row(children:[Expanded(child:TextField(controller:stock,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:dec('Quantity'))),const SizedBox(width:8),SizedBox(width:110,child:TextField(controller:unit,decoration:dec('Unit')))]),
-        const SizedBox(height:8),SizedBox(width:double.infinity,child:FilledButton.tonal(onPressed:busy?null:saveStock,child:const Text('Update shared stock'))),
-        Text('Sellable: ${p['stock_quantity']??0} default packs · Physical: ${p['inventory_quantity']??0} ${p['inventory_unit']??'unit'}',style:const TextStyle(fontSize:11,color:muted)),
-      ]))),
-      section('Available pack options','${packs.length} variants'),
-      ...packs.map((v)=>Card(child:ListTile(title:Text(v['variant_name']??'Pack'),subtitle:Text('${v['unit_label']} · ${money((v['price'] as num?)?.toDouble())} · consumes ${v['inventory_quantity_per_pack']} ${p['inventory_unit']??'unit'}'),trailing:PopupMenuButton<String>(onSelected:(a){if(a=='edit'){edit(v);}else{toggle(v);}},itemBuilder:(_)=>[const PopupMenuItem(value:'edit',child:Text('Edit')),PopupMenuItem(value:'toggle',child:Text(v['is_active']==true?'Disable':'Enable'))])))),
-    ],if(products.isEmpty)empty('Add products before configuring pack sizes.')]));
+  @override Widget build(BuildContext context){
+    if(loading)return const Center(child:CircularProgressIndicator());
+    final p=product;
+    final activePacks=packs.where((v)=>v['is_active']==true).length;
+    return RefreshIndicator(onRefresh:load,child:ListView(padding:const EdgeInsets.fromLTRB(16,16,16,28),children:[
+      section('Pack sizes & pricing','Create selling options that draw from one shared stock balance'),
+      Row(children:[
+        Expanded(child:_AdminStatCard(label:'Products',value:'${products.length}',icon:Icons.inventory_2_outlined)),
+        const SizedBox(width:9),
+        Expanded(child:_AdminStatCard(label:'Pack options',value:'${variants.length}',icon:Icons.widgets_outlined,accent:true)),
+      ]),
+      const SizedBox(height:14),
+      DropdownButtonFormField<String>(initialValue:selected,isExpanded:true,decoration:dec('Choose a product').copyWith(prefixIcon:const Icon(Icons.inventory_2_outlined)),items:products.map((item)=>DropdownMenuItem(value:item['product_id'].toString(),child:Text(item['name']??'Product'))).toList(),onChanged:choose),
+      if(p!=null)...[
+        const SizedBox(height:13),
+        Card(child:Padding(padding:const EdgeInsets.all(15),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+          Row(children:[const Expanded(child:Text('Shared inventory',style:TextStyle(fontSize:15,fontWeight:FontWeight.w800))),_AdminStatusTag(label:'Live stock',active:true)]),
+          const SizedBox(height:4),
+          const Text('All pack sizes consume from this physical quantity.',style:TextStyle(fontSize:11,color:muted)),
+          const SizedBox(height:14),
+          Row(crossAxisAlignment:CrossAxisAlignment.end,children:[
+            Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+              Text('${p['inventory_quantity']??0}',style:const TextStyle(fontSize:28,fontWeight:FontWeight.w900,height:1)),
+              Text('Physical stock · ${p['inventory_unit']??'unit'}',style:const TextStyle(fontSize:11,color:muted)),
+            ])),
+            Column(crossAxisAlignment:CrossAxisAlignment.end,children:[
+              Text('${p['stock_quantity']??0}',style:const TextStyle(fontSize:21,fontWeight:FontWeight.w800,color:green)),
+              const Text('Default packs sellable',style:TextStyle(fontSize:10,color:muted)),
+            ]),
+          ]),
+          const Divider(height:24),
+          Row(children:[
+            Expanded(child:TextField(controller:stock,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:dec('Physical quantity'))),
+            const SizedBox(width:9),
+            SizedBox(width:105,child:TextField(controller:unit,decoration:dec('Unit'))),
+          ]),
+          const SizedBox(height:10),
+          SizedBox(width:double.infinity,child:FilledButton.tonalIcon(onPressed:busy?null:saveStock,icon:const Icon(Icons.save_outlined),label:const Text('Update shared stock'))),
+        ]))),
+        Card(child:Padding(padding:const EdgeInsets.all(15),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+          Row(children:[Expanded(child:Text(editing==null?'Create a pack option':'Edit pack option',style:const TextStyle(fontSize:15,fontWeight:FontWeight.w800))),if(editing!=null)TextButton(onPressed:()=>setState(reset),child:const Text('Cancel'))]),
+          const SizedBox(height:4),
+          const Text('Set the customer-facing pack name, price and stock consumption.',style:TextStyle(fontSize:11,color:muted)),
+          const SizedBox(height:13),
+          TextField(controller:name,decoration:dec('Pack name')),
+          const SizedBox(height:9),
+          TextField(controller:label,decoration:dec('Unit label')),
+          const SizedBox(height:9),
+          Row(children:[
+            Expanded(child:TextField(controller:price,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:dec('Selling price ₹'))),
+            const SizedBox(width:9),
+            Expanded(child:TextField(controller:mrp,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:dec('MRP ₹'))),
+          ]),
+          const SizedBox(height:9),
+          TextField(controller:consumption,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:dec('Stock consumed per pack (${p['inventory_unit']??'unit'})')),
+          const SizedBox(height:12),
+          SizedBox(width:double.infinity,child:FilledButton.icon(onPressed:busy?null:savePack,icon:Icon(editing==null?Icons.add_rounded:Icons.save_outlined),label:Text(busy?'Saving…':editing==null?'Add pack option':'Save changes'))),
+        ]))),
+        Row(children:[Expanded(child:section('Pack options','${packs.length} configured · $activePacks enabled'))]),
+        if(packs.isEmpty)empty('No pack sizes yet. Add the first option above.'),
+        ...packs.map((v){
+          final enabled=v['is_active']==true;
+          return Card(margin:const EdgeInsets.only(bottom:8),child:ListTile(
+            contentPadding:const EdgeInsets.symmetric(horizontal:13,vertical:5),
+            leading:Container(width:42,height:42,decoration:BoxDecoration(color:const Color(0xFFEAF2EC),borderRadius:BorderRadius.circular(12)),child:const Icon(Icons.inventory_2_outlined,color:green)),
+            title:Text(v['variant_name']??'Pack',style:const TextStyle(fontSize:14,fontWeight:FontWeight.w800)),
+            subtitle:Padding(padding:const EdgeInsets.only(top:4),child:Text('${v['unit_label']} · ${money((v['price'] as num?)?.toDouble())} · consumes ${v['inventory_quantity_per_pack']} ${p['inventory_unit']??'unit'}',style:const TextStyle(fontSize:11,color:muted))),
+            trailing:PopupMenuButton<String>(onSelected:(action){if(action=='edit'){edit(v);}else{toggle(v);}},itemBuilder:(_)=>[const PopupMenuItem(value:'edit',child:Text('Edit pack')),PopupMenuItem(value:'toggle',child:Text(enabled?'Disable':'Enable'))]),
+          ));
+        }),
+        const Card(child:ListTile(leading:Icon(Icons.info_outline,color:green),title:Text('Shared stock protection'),subtitle:Text('Every enabled pack option consumes from the same physical inventory.'))),
+      ],
+      if(products.isEmpty)empty('Add products before configuring pack sizes.'),
+    ]));
+  }
+  }
   }
 }
 
@@ -371,13 +458,44 @@ class _ShopPageState extends State<ShopPage>{
   @override void dispose(){message.dispose();super.dispose();}
   Future<void> load()async{setState(()=>loading=true);try{final r=await db.from('shop_settings').select('is_open,closed_message,accepting_online_orders').eq('id',1).single();open=r['is_open']==true;online=r['accepting_online_orders']==true;message.text=r['closed_message']?.toString()??message.text;}catch(e){if(mounted)toast(context,messageOf(e),error:true);}if(mounted)setState(()=>loading=false);}
   Future<void> save({bool? isOpen,bool? isOnline})async{setState(()=>saving=true);try{final data=<String,dynamic>{'updated_at':DateTime.now().toUtc().toIso8601String()};if(isOpen!=null)data['is_open']=isOpen;if(isOnline!=null)data['accepting_online_orders']=isOnline;if(isOpen==null&&isOnline==null)data['closed_message']=message.text.trim();await db.from('shop_settings').update(data).eq('id',1);if(isOpen!=null)open=isOpen;if(isOnline!=null)online=isOnline;if(mounted)toast(context,'Shop settings saved.');}catch(e){if(mounted)toast(context,messageOf(e),error:true);}if(mounted)setState(()=>saving=false);}
-  @override Widget build(BuildContext context){if(loading)return const Center(child:CircularProgressIndicator());return RefreshIndicator(onRefresh:load,child:ListView(padding:const EdgeInsets.all(16),children:[
-    section('Shop settings','Manage shop availability and checkout separately'),
-    Card(child:SwitchListTile(value:open,onChanged:saving?null:(v)=>save(isOpen:v),activeThumbColor:green,title:Text(open?'Shop is open':'Shop is closed',style:const TextStyle(fontWeight:FontWeight.w800)),subtitle:Text(open?'Customers can browse and place COD orders.':'Browsing remains available; checkout is paused.'),secondary:const Icon(Icons.storefront,color:green))),
-    Card(child:SwitchListTile(value:online,onChanged:saving?null:(v)=>save(isOnline:v),activeThumbColor:green,title:Text(online?'Online orders enabled':'Online orders disabled',style:const TextStyle(fontWeight:FontWeight.w800)),subtitle:const Text('Controls the existing accepting_online_orders setting.'),secondary:const Icon(Icons.shopping_bag_outlined,color:green))),
-    Card(child:Padding(padding:const EdgeInsets.all(16),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('Checkout unavailable message',style:TextStyle(fontWeight:FontWeight.w800)),const SizedBox(height:8),TextField(controller:message,maxLength:220,maxLines:4,decoration:dec('Customer-facing message')),SizedBox(width:double.infinity,child:FilledButton(onPressed:saving||message.text.trim().isEmpty?null:()=>save(),child:const Text('Save message')))]))),
-    const Padding(padding:EdgeInsets.all(12),child:Text('Closing the shop affects new checkout only. Existing orders are not changed.',style:TextStyle(fontSize:12,color:muted))),
-  ]));}
+  @override Widget build(BuildContext context){
+    if(loading)return const Center(child:CircularProgressIndicator());
+    return RefreshIndicator(onRefresh:load,child:ListView(padding:const EdgeInsets.fromLTRB(16,16,16,28),children:[
+      section('Shop settings','Control store availability and customer checkout'),
+      Container(padding:const EdgeInsets.all(18),decoration:BoxDecoration(borderRadius:BorderRadius.circular(22),gradient:LinearGradient(begin:Alignment.topLeft,end:Alignment.bottomRight,colors:open?[const Color(0xFF174C32),const Color(0xFF28764D)]:[const Color(0xFF424B45),const Color(0xFF68736B)])),child:Row(children:[
+        Container(width:48,height:48,decoration:BoxDecoration(color:Colors.white.withValues(alpha:.14),borderRadius:BorderRadius.circular(15)),child:Icon(open?Icons.storefront_rounded:Icons.storefront_outlined,color:Colors.white,size:25)),
+        const SizedBox(width:13),
+        Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+          Text(open?'Your shop is open':'Your shop is closed',style:const TextStyle(color:Colors.white,fontSize:18,fontWeight:FontWeight.w900)),
+          const SizedBox(height:4),
+          Text(online?'Online checkout is enabled':'Online checkout is paused',style:const TextStyle(color:Color(0xFFDCEBE1),fontSize:11)),
+        ])),
+        IconButton(onPressed:load,tooltip:'Refresh settings',icon:const Icon(Icons.refresh_rounded,color:Colors.white)),
+      ])),
+      const SizedBox(height:16),
+      const Text('Store availability',style:TextStyle(fontSize:16,fontWeight:FontWeight.w800)),
+      const SizedBox(height:8),
+      Card(child:SwitchListTile(value:open,onChanged:saving?null:(value)=>save(isOpen:value),activeThumbColor:green,secondary:Container(width:40,height:40,decoration:BoxDecoration(color:const Color(0xFFEAF2EC),borderRadius:BorderRadius.circular(12)),child:const Icon(Icons.storefront_outlined,color:green)),title:Text(open?'Shop is open':'Shop is closed',style:const TextStyle(fontWeight:FontWeight.w800,fontSize:14)),subtitle:Text(open?'Customers can browse and place COD orders.':'Browsing remains available; checkout is paused.',style:const TextStyle(fontSize:11,color:muted)))),
+      const SizedBox(height:14),
+      const Text('Online ordering',style:TextStyle(fontSize:16,fontWeight:FontWeight.w800)),
+      const SizedBox(height:8),
+      Card(child:SwitchListTile(value:online,onChanged:saving?null:(value)=>save(isOnline:value),activeThumbColor:green,secondary:Container(width:40,height:40,decoration:BoxDecoration(color:const Color(0xFFEAF1FA),borderRadius:BorderRadius.circular(12)),child:const Icon(Icons.shopping_bag_outlined,color:Color(0xFF2563A6))),title:Text(online?'Orders are being accepted':'Orders are paused',style:const TextStyle(fontWeight:FontWeight.w800,fontSize:14)),subtitle:const Text('Controls the existing accepting_online_orders setting.',style:TextStyle(fontSize:11,color:muted)))),
+      const SizedBox(height:14),
+      Card(child:Padding(padding:const EdgeInsets.all(16),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+        const Row(children:[Icon(Icons.message_outlined,color:green),SizedBox(width:8),Expanded(child:Text('Checkout unavailable message',style:TextStyle(fontSize:15,fontWeight:FontWeight.w800)))]),
+        const SizedBox(height:5),
+        const Text('Shown to customers when checkout is unavailable.',style:TextStyle(fontSize:11,color:muted)),
+        const SizedBox(height:12),
+        TextField(controller:message,maxLength:220,maxLines:4,decoration:dec('Customer-facing message')),
+        const SizedBox(height:8),
+        SizedBox(width:double.infinity,child:FilledButton.icon(onPressed:saving||message.text.trim().isEmpty?null:()=>save(),icon:const Icon(Icons.save_outlined),label:Text(saving?'Saving…':'Save message'))),
+      ]))),
+      const SizedBox(height:8),
+      const Card(child:ListTile(leading:Icon(Icons.shield_outlined,color:green),title:Text('Existing orders are safe'),subtitle:Text('Closing the shop or pausing checkout only affects new orders. Existing customer orders are not changed.'))),
+    ]));
+  }
+}
+
 }
 
 class DeliveryPage extends StatelessWidget{
