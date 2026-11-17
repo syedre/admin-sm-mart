@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../app.dart';
 import 'admin_features.dart';
 import 'mobile_delivery_page.dart';
+import '../services/admin_push_notifications.dart';
 
 class AdminShell extends StatefulWidget {
   const AdminShell({super.key});
@@ -16,6 +17,28 @@ class AdminShell extends StatefulWidget {
 class _AdminShellState extends State<AdminShell> {
   int _index = 0;
   int _ordersRefreshKey = 0;
+  String? _openedOrderId;
+  String? _openedOrderNumber;
+
+  @override
+  void initState() {
+    super.initState();
+    AdminPushNotifications.setOrderOpenHandler((orderId, orderNumber) {
+      if (!mounted) return;
+      setState(() {
+        _openedOrderId = orderId;
+        _openedOrderNumber = orderNumber;
+        _ordersRefreshKey++;
+        _index = 2;
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    AdminPushNotifications.setOrderOpenHandler(null);
+    super.dispose();
+  }
 
   static const _destinations = [
     NavigationDestination(icon: Icon(Icons.space_dashboard_outlined), selectedIcon: Icon(Icons.space_dashboard), label: 'Home'),
@@ -39,7 +62,10 @@ class _AdminShellState extends State<AdminShell> {
           IconButton(tooltip: 'Refresh', onPressed: () => setState(() => _ordersRefreshKey++), icon: const Icon(Icons.refresh)),
           IconButton(
             tooltip: 'Sign out',
-            onPressed: () => Supabase.instance.client.auth.signOut(),
+            onPressed: () async {
+            await AdminPushNotifications.unregisterCurrentDevice();
+            await Supabase.instance.client.auth.signOut();
+          },
             icon: const Icon(Icons.logout_rounded),
           ),
           const SizedBox(width: 8),
@@ -54,7 +80,11 @@ class _AdminShellState extends State<AdminShell> {
             onOpenDelivery: () => setState(() => _index = 4),
           ),
           const CataloguePage(),
-          OrdersPage(key: ValueKey(_ordersRefreshKey)),
+          OrdersPage(
+            key: ValueKey(_ordersRefreshKey),
+            initialOrderId: _openedOrderId,
+            initialOrderNumber: _openedOrderNumber,
+          ),
           const PacksPage(),
           const MobileDeliveryPage(),
           const ShopPage(),
@@ -63,7 +93,11 @@ class _AdminShellState extends State<AdminShell> {
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
         onDestinationSelected: (value) => setState(() {
-          if (value == 2) _ordersRefreshKey++;
+          if (value == 2) {
+            _ordersRefreshKey++;
+            _openedOrderId = null;
+            _openedOrderNumber = null;
+          }
           _index = value;
         }),
         destinations: _destinations,

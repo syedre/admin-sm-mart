@@ -3,6 +3,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app.dart';
+import 'services/admin_push_notifications.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -24,6 +25,16 @@ Future<void> main() async {
     }
   } catch (error) {
     debugPrint('SM mart Admin configuration could not be loaded: $error');
+  }
+
+  if (configured) {
+    try {
+      await AdminPushNotifications.initialize(
+        apiBaseUrl: const String.fromEnvironment('ADMIN_PUSH_API_URL'),
+      );
+    } catch (error) {
+      debugPrint('SM mart Admin push notifications could not be initialized: $error');
+    }
   }
 
   runApp(SmMartAdminApp(configured: configured));

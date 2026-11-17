@@ -226,14 +226,25 @@ class _ProductEditorState extends State<ProductEditor>{
   ])));
 }
 
-class OrdersPage extends StatefulWidget{const OrdersPage({super.key});@override State<OrdersPage> createState()=>_OrdersPageState();}
+class OrdersPage extends StatefulWidget {
+  const OrdersPage({super.key, this.initialOrderId, this.initialOrderNumber});
+  final String? initialOrderId;
+  final String? initialOrderNumber;
+  @override State<OrdersPage> createState()=>_OrdersPageState();
+}
 class _OrdersPageState extends State<OrdersPage>{
   bool loading=true;String search='',filter='all',statusFilter='all';List<Map<String,dynamic>> orders=[];final Set<dynamic> updatingOrderIds={};
   final labels={'placed':'Placed','confirmed':'Confirmed','preparing':'Preparing','out_for_delivery':'Out for delivery','delivered':'Delivered','cancelled':'Cancelled'};
   final next={'placed':'confirmed','confirmed':'preparing','preparing':'out_for_delivery','out_for_delivery':'delivered'};
   String get today=>DateFormat('yyyy-MM-dd').format(DateTime.now().toUtc().add(const Duration(hours:5,minutes:30)));
   String shift(int d)=>DateFormat('yyyy-MM-dd').format(DateTime.parse(today).add(Duration(days:d)));
-  @override void initState(){super.initState();load();}
+  @override void initState(){
+    super.initState();
+    search = widget.initialOrderNumber?.trim().isNotEmpty == true
+        ? widget.initialOrderNumber!.trim()
+        : widget.initialOrderId?.trim() ?? '';
+    load();
+  }
   Future<void> load()async{setState(()=>loading=true);try{
     final rows=await db.from('orders').select('id,order_number,user_id,status,payment_method,payment_status,total_cents,created_at,delivery_date,address_label,address_line,apartment,landmark,city,state,postal_code,latitude,longitude,order_items(id,product_name,product_unit,quantity,unit_price_cents)').order('created_at',ascending:false);
     orders=List<Map<String,dynamic>>.from(rows);final ids=orders.map((o)=>o['user_id']).whereType<String>().toSet().toList();
@@ -295,7 +306,10 @@ class _OrdersPageState extends State<OrdersPage>{
       }
     }
     final list=orders.where((o){
-      final matchesSearch=q.isNotEmpty?(o['order_number']?.toString()??'').contains(q):matchesDeliveryDate(o);
+      final matchesSearch=q.isNotEmpty
+          ? (o['order_number']?.toString()??'').contains(q) ||
+              (o['id']?.toString()??'').toLowerCase().contains(q.toLowerCase())
+          : matchesDeliveryDate(o);
       return matchesSearch&&(statusFilter=='all'||o['status']==statusFilter);
     }).toList();
     if(loading)return const Center(child:CircularProgressIndicator());
@@ -347,6 +361,7 @@ class _OrdersPageState extends State<OrdersPage>{
         final created=DateTime.tryParse(o['created_at']?.toString()??'');
         final statusColor=status=='placed'?const Color(0xFFB7791F):status=='confirmed'||status=='preparing'?const Color(0xFF2563A6):status=='out_for_delivery'?green:status=='cancelled'?const Color(0xFFB42318):muted;
         return Card(margin:const EdgeInsets.only(bottom:9),clipBehavior:Clip.antiAlias,child:ExpansionTile(
+          initiallyExpanded: widget.initialOrderId != null && widget.initialOrderId == o['id']?.toString(),
           tilePadding:const EdgeInsets.symmetric(horizontal:14,vertical:5),childrenPadding:const EdgeInsets.fromLTRB(14,0,14,14),
           leading:Container(width:40,height:40,decoration:BoxDecoration(color:const Color(0xFFEAF2EC),borderRadius:BorderRadius.circular(12)),child:const Icon(Icons.receipt_long_rounded,color:green,size:20)),
           title:Row(children:[Expanded(child:Text('Order #${o['order_number']}',style:const TextStyle(fontWeight:FontWeight.w800,fontSize:14))),_AdminStatusTag(label:labels[status]??status,active:status=='out_for_delivery'||status=='delivered',color:statusColor)]),

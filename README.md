@@ -30,6 +30,17 @@ flutter run \
 
 Only the Supabase publishable/anon key belongs in the client. Never put a service-role key or Firebase service-account JSON in this app.
 
+For admin order push notifications, add the Render realtime service base URL as a compile-time value:
+
+```bash
+flutter run \\
+  --dart-define=SUPABASE_URL=https://YOUR_PROJECT.supabase.co \\
+  --dart-define=SUPABASE_PUBLISHABLE_KEY=YOUR_PUBLISHABLE_KEY \\
+  --dart-define=ADMIN_PUSH_API_URL=https://YOUR_REALTIME_SERVICE.onrender.com
+```
+
+The app initializes Firebase using the Android/iOS app IDs and public client API keys from the Firebase app registrations. It requests notification permission after the existing `admin@gmail.com` Supabase session is available, registers the FCM token with the Render service, shows foreground notifications, and opens the matching order when a notification is tapped. On iOS, enable the **Push Notifications** capability for the Runner target and upload an APNs authentication key in Firebase Console > Project settings > Cloud Messaging. The Render service must be deployed with `FIREBASE_SERVICE_ACCOUNT_JSON` and the default Firestore database enabled in project `sm-delivery-app-10f03`.
+
 ## Development
 
 Install Flutter and platform prerequisites using the [official Flutter setup guide](https://docs.flutter.dev/install), then:
