@@ -1,8 +1,7 @@
 name: sm_mart_admin
 description: SM mart cross-platform administration app.
 publish_to: "none"
-version: 1.0.0+2
-
+version: 1.0.0+4
 environment:
   sdk: ">=3.5.0 <4.0.0"
 
