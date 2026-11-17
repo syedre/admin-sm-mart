@@ -152,6 +152,16 @@ class _ProductEditorState extends State<ProductEditor>{
   final form=GlobalKey<FormState>(); late TextEditingController name,description,price,mrp,unit,stock;
   String? category,home; XFile? image; bool remove=false,saving=false;
 
+  // Product prices are stored as PostgreSQL bigint whole-rupee values.
+  // Accept inputs such as 200 and 200.00, but reject fractional rupees.
+  int? wholeRupees(String? raw) {
+    final value = double.tryParse((raw ?? '').trim());
+    if (value == null || value < 0 || value != value.roundToDouble()) {
+      return null;
+    }
+    return value.toInt();
+  }
+
   // Keep dropdown values unique and retain a product's existing category even
   // if that category is inactive or missing from the latest category query.
   List<Map<String, dynamic>> get categoryOptions {
@@ -191,12 +201,12 @@ class _ProductEditorState extends State<ProductEditor>{
     try{
       String? imageUrl=remove?null:widget.product?['image_url']?.toString();
       if(image!=null){final ext=image!.name.split('.').last.toLowerCase().replaceAll('jpeg','jpg');final path='product/images/${DateTime.now().millisecondsSinceEpoch}.$ext';await db.storage.from('royalwood').uploadBinary(path,await image!.readAsBytes(),fileOptions:FileOptions(contentType:image!.mimeType??'image/jpeg',cacheControl:'3600',upsert:false));imageUrl=db.storage.from('royalwood').getPublicUrl(path);}
-      final payload={'name':name.text.trim(),'description':description.text.trim().isEmpty?null:description.text.trim(),'price':double.parse(price.text),'mrp':mrp.text.trim().isEmpty?null:double.parse(mrp.text),'stock_quantity':int.parse(stock.text),'category_id':category,'image_url':imageUrl,'home_page_status':home==''?null:home};
+      final payload={'name':name.text.trim(),'description':description.text.trim().isEmpty?null:description.text.trim(),'price':wholeRupees(price.text)!,'mrp':mrp.text.trim().isEmpty?null:wholeRupees(mrp.text)!,'stock_quantity':int.parse(stock.text),'category_id':category,'image_url':imageUrl,'home_page_status':home==''?null:home};
       if(widget.product==null){await db.from('products').insert({...payload,'unit':unit.text.trim(),'is_active':true});}
       else{
         await db.from('products').update(payload).eq('product_id',widget.product!['product_id']);
         final v=await db.from('product_variants').select('variant_id,inventory_quantity_per_pack').eq('product_id',widget.product!['product_id']).order('sort_order').order('created_at').limit(1).maybeSingle();
-        if(v!=null){final amount=(v['inventory_quantity_per_pack'] as num?)?.toDouble()??1;await db.from('products').update({'inventory_quantity':int.parse(stock.text)*amount}).eq('product_id',widget.product!['product_id']);await db.from('product_variants').update({'variant_name':unit.text.trim(),'unit_label':unit.text.trim(),'price':double.parse(price.text),'mrp':mrp.text.trim().isEmpty?null:double.parse(mrp.text),'updated_at':DateTime.now().toUtc().toIso8601String()}).eq('variant_id',v['variant_id']);}
+        if(v!=null){final amount=(v['inventory_quantity_per_pack'] as num?)?.toDouble()??1;await db.from('products').update({'inventory_quantity':int.parse(stock.text)*amount}).eq('product_id',widget.product!['product_id']);await db.from('product_variants').update({'variant_name':unit.text.trim(),'unit_label':unit.text.trim(),'price':wholeRupees(price.text)!,'mrp':mrp.text.trim().isEmpty?null:wholeRupees(mrp.text)!,'updated_at':DateTime.now().toUtc().toIso8601String()}).eq('variant_id',v['variant_id']);}
       }
       if(mounted)Navigator.pop(context,true);
     }catch(e){if(mounted)toast(context,messageOf(e),error:true);}
@@ -206,7 +216,7 @@ class _ProductEditorState extends State<ProductEditor>{
     Text(widget.product==null?'Add product':'Edit product',style:const TextStyle(fontSize:20,fontWeight:FontWeight.w800)),
     const SizedBox(height:12),TextFormField(controller:name,decoration:dec('Product name'),validator:(v)=>v==null||v.trim().isEmpty?'Required':null),
     const SizedBox(height:8),TextFormField(controller:description,decoration:dec('Description'),maxLines:2),
-    const SizedBox(height:8),Row(children:[Expanded(child:TextFormField(controller:price,decoration:dec('Price ₹'),keyboardType:const TextInputType.numberWithOptions(decimal:true),validator:(v)=>double.tryParse(v??'')==null?'Invalid price':null)),const SizedBox(width:8),Expanded(child:TextFormField(controller:mrp,decoration:dec('MRP ₹'),keyboardType:const TextInputType.numberWithOptions(decimal:true)))]),
+    const SizedBox(height:8),Row(children:[Expanded(child:TextFormField(controller:price,decoration:dec('Price ₹'),keyboardType:const TextInputType.numberWithOptions(decimal:true),validator:(v)=>wholeRupees(v)==null?'Enter a whole-rupee price':null)),const SizedBox(width:8),Expanded(child:TextFormField(controller:mrp,decoration:dec('MRP ₹'),keyboardType:const TextInputType.numberWithOptions(decimal:true),validator:(v)=>v==null||v.trim().isEmpty||wholeRupees(v)!=null?null:'Enter a whole-rupee MRP'))]),
     const SizedBox(height:8),Row(children:[Expanded(child:TextFormField(controller:unit,decoration:dec('Unit'),validator:(v)=>v==null||v.trim().isEmpty?'Required':null)),const SizedBox(width:8),Expanded(child:TextFormField(controller:stock,decoration:dec('Stock'),keyboardType:TextInputType.number,validator:(v)=>int.tryParse(v??'')==null?'Invalid stock':null))]),
     const SizedBox(height:8),DropdownButtonFormField<String>(initialValue:category,decoration:dec('Category'),items:categoryOptions.map((c)=>DropdownMenuItem<String>(value:c['id'].toString(),child:Text(c['name']??'Category'))).toList(),onChanged:(v)=>setState(()=>category=v)),
     const SizedBox(height:8),DropdownButtonFormField<String>(initialValue:home??'',decoration:dec('Homepage section'),items:[const DropdownMenuItem<String>(value:'',child:Text('None')),...homeOptions.map((h)=>DropdownMenuItem<String>(value:h['id'].toString(),child:Text(h['name']??'Section')))],onChanged:(v)=>setState(()=>home=v)),
