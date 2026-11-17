@@ -14,6 +14,7 @@ class AdminShell extends StatefulWidget {
 
 class _AdminShellState extends State<AdminShell> {
   int _index = 0;
+  int _ordersRefreshKey = 0;
 
   static const _destinations = [
     NavigationDestination(icon: Icon(Icons.space_dashboard_outlined), selectedIcon: Icon(Icons.space_dashboard), label: 'Home'),
@@ -34,7 +35,7 @@ class _AdminShellState extends State<AdminShell> {
           Text(titles[_index], style: const TextStyle(fontSize: 12, color: Colors.black54)),
         ]),
         actions: [
-          IconButton(tooltip: 'Refresh', onPressed: () => setState(() {}), icon: const Icon(Icons.refresh)),
+          IconButton(tooltip: 'Refresh', onPressed: () => setState(() => _ordersRefreshKey++), icon: const Icon(Icons.refresh)),
           IconButton(
             tooltip: 'Sign out',
             onPressed: () => Supabase.instance.client.auth.signOut(),
@@ -48,7 +49,7 @@ class _AdminShellState extends State<AdminShell> {
         children: const [
           _OverviewPage(),
           CataloguePage(),
-          OrdersPage(),
+          OrdersPage(key: ValueKey(_ordersRefreshKey)),
           PacksPage(),
           MobileDeliveryPage(),
           ShopPage(),
@@ -56,7 +57,10 @@ class _AdminShellState extends State<AdminShell> {
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
-        onDestinationSelected: (value) => setState(() => _index = value),
+        onDestinationSelected: (value) => setState(() {
+          if (value == 2) _ordersRefreshKey++;
+          _index = value;
+        }),
         destinations: _destinations,
       ),
     );
