@@ -54,13 +54,7 @@ class _AdminStatusTag extends StatelessWidget {
 class CataloguePage extends StatefulWidget { const CataloguePage({super.key}); @override State<CataloguePage> createState()=>_CataloguePageState(); }
 class _CataloguePageState extends State<CataloguePage> {
   bool loading=true; String search='', categoryFilter='all', visibilityFilter='all'; List<Map<String,dynamic>> products=[], categories=[], homes=[];
-  @override void initState(){
-    super.initState();
-    search = widget.initialOrderNumber?.trim().isNotEmpty == true
-        ? widget.initialOrderNumber!.trim()
-        : widget.initialOrderId?.trim() ?? '';
-    load();
-  }
+  @override void initState(){super.initState();load();}
   Future<void> load() async {
     setState(()=>loading=true);
     try {
@@ -244,7 +238,13 @@ class _OrdersPageState extends State<OrdersPage>{
   final next={'placed':'confirmed','confirmed':'preparing','preparing':'out_for_delivery','out_for_delivery':'delivered'};
   String get today=>DateFormat('yyyy-MM-dd').format(DateTime.now().toUtc().add(const Duration(hours:5,minutes:30)));
   String shift(int d)=>DateFormat('yyyy-MM-dd').format(DateTime.parse(today).add(Duration(days:d)));
-  @override void initState(){super.initState();load();}
+  @override void initState(){
+    super.initState();
+    search = widget.initialOrderNumber?.trim().isNotEmpty == true
+        ? widget.initialOrderNumber!.trim()
+        : widget.initialOrderId?.trim() ?? '';
+    load();
+  }
   Future<void> load()async{setState(()=>loading=true);try{
     final rows=await db.from('orders').select('id,order_number,user_id,status,payment_method,payment_status,total_cents,created_at,delivery_date,address_label,address_line,apartment,landmark,city,state,postal_code,latitude,longitude,order_items(id,product_name,product_unit,quantity,unit_price_cents)').order('created_at',ascending:false);
     orders=List<Map<String,dynamic>>.from(rows);final ids=orders.map((o)=>o['user_id']).whereType<String>().toSet().toList();
