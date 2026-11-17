@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../app.dart';
 import 'admin_features.dart';
+import 'mobile_delivery_page.dart';
 
 class AdminShell extends StatefulWidget {
   const AdminShell({super.key});
@@ -49,7 +50,7 @@ class _AdminShellState extends State<AdminShell> {
           CataloguePage(),
           OrdersPage(),
           PacksPage(),
-          DeliveryPage(),
+          MobileDeliveryPage(),
           ShopPage(),
         ],
       ),
@@ -64,7 +65,6 @@ class _AdminShellState extends State<AdminShell> {
 
 class _OverviewPage extends StatefulWidget {
   const _OverviewPage();
-
   @override
   State<_OverviewPage> createState() => _OverviewPageState();
 }
@@ -79,10 +79,7 @@ class _OverviewPageState extends State<_OverviewPage> {
   List<Map<String, dynamic>> _recentOrders = [];
 
   @override
-  void initState() {
-    super.initState();
-    _load();
-  }
+  void initState() { super.initState(); _load(); }
 
   Future<void> _load() async {
     setState(() { _loading = true; _error = null; });
@@ -157,25 +154,21 @@ class _MetricCard extends StatelessWidget {
   final String value;
   final String note;
   final IconData icon;
-
   @override
-  Widget build(BuildContext context) => Card(
-    child: Padding(
-      padding: const EdgeInsets.all(14),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [Expanded(child: Text(label, style: const TextStyle(fontSize: 12, color: Colors.black54))), Icon(icon, color: SmMartAdminApp.brandGreen, size: 19)]),
-        const Spacer(),
-        Text(value, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800)),
-        Text(note, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10, color: Colors.black54)),
-      ]),
-    ),
-  );
+  Widget build(BuildContext context) => Card(child: Padding(
+    padding: const EdgeInsets.all(14),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [Expanded(child: Text(label, style: const TextStyle(fontSize: 12, color: Colors.black54))), Icon(icon, color: SmMartAdminApp.brandGreen, size: 19)]),
+      const Spacer(),
+      Text(value, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800)),
+      Text(note, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10, color: Colors.black54)),
+    ]),
+  ));
 }
 
 class _ErrorCard extends StatelessWidget {
   const _ErrorCard({required this.message});
   final String message;
-
   @override
   Widget build(BuildContext context) => Card(
     color: const Color(0xFFFFF1F0),
@@ -186,7 +179,6 @@ class _ErrorCard extends StatelessWidget {
 class _EmptyState extends StatelessWidget {
   const _EmptyState({required this.message});
   final String message;
-
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.symmetric(vertical: 30),
