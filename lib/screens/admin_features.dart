@@ -167,6 +167,21 @@ class _ProductEditorState extends State<ProductEditor>{
     }
     return options;
   }
+  // Homepage section is stored as enum_table.id, not enum_table.name.
+  // Keep IDs unique and preserve an existing value if its option is unavailable.
+  List<Map<String, dynamic>> get homeOptions {
+    final seen = <String>{};
+    final options = <Map<String, dynamic>>[];
+    for (final item in widget.homes) {
+      final id = item['id']?.toString();
+      if (id != null && seen.add(id)) options.add(item);
+    }
+    final currentId = widget.product?['home_page_status']?.toString();
+    if (currentId != null && currentId.isNotEmpty && seen.add(currentId)) {
+      options.add({'id': currentId, 'name': 'Current section'});
+    }
+    return options;
+  }
   @override void initState(){super.initState();final p=widget.product;name=TextEditingController(text:p?['name']??'');description=TextEditingController(text:p?['description']??'');price=TextEditingController(text:p?['price']?.toString()??'');mrp=TextEditingController(text:p?['mrp']?.toString()??'');unit=TextEditingController(text:p?['unit']??'1 kg');stock=TextEditingController(text:p?['stock_quantity']?.toString()??'0');category=p?['category_id']?.toString()??firstMatch(widget.categories,(c)=>c['is_active']==true)?['id']?.toString();home=p?['home_page_status']?.toString();}
   @override void dispose(){name.dispose();description.dispose();price.dispose();mrp.dispose();unit.dispose();stock.dispose();super.dispose();}
   Future<void> save() async {
@@ -194,7 +209,7 @@ class _ProductEditorState extends State<ProductEditor>{
     const SizedBox(height:8),Row(children:[Expanded(child:TextFormField(controller:price,decoration:dec('Price ₹'),keyboardType:const TextInputType.numberWithOptions(decimal:true),validator:(v)=>double.tryParse(v??'')==null?'Invalid price':null)),const SizedBox(width:8),Expanded(child:TextFormField(controller:mrp,decoration:dec('MRP ₹'),keyboardType:const TextInputType.numberWithOptions(decimal:true)))]),
     const SizedBox(height:8),Row(children:[Expanded(child:TextFormField(controller:unit,decoration:dec('Unit'),validator:(v)=>v==null||v.trim().isEmpty?'Required':null)),const SizedBox(width:8),Expanded(child:TextFormField(controller:stock,decoration:dec('Stock'),keyboardType:TextInputType.number,validator:(v)=>int.tryParse(v??'')==null?'Invalid stock':null))]),
     const SizedBox(height:8),DropdownButtonFormField<String>(initialValue:category,decoration:dec('Category'),items:categoryOptions.map((c)=>DropdownMenuItem<String>(value:c['id'].toString(),child:Text(c['name']??'Category'))).toList(),onChanged:(v)=>setState(()=>category=v)),
-    const SizedBox(height:8),DropdownButtonFormField<String>(initialValue:home??'',decoration:dec('Homepage section'),items:[const DropdownMenuItem(value:'',child:Text('None')), ...widget.homes.map((h)=>DropdownMenuItem(value:h['name'].toString(),child:Text(h['name'].toString())))],onChanged:(v)=>setState(()=>home=v)),
+    const SizedBox(height:8),DropdownButtonFormField<String>(initialValue:home??'',decoration:dec('Homepage section'),items:[const DropdownMenuItem<String>(value:'',child:Text('None')),...homeOptions.map((h)=>DropdownMenuItem<String>(value:h['id'].toString(),child:Text(h['name']??'Section')))],onChanged:(v)=>setState(()=>home=v)),
     OutlinedButton.icon(onPressed:()async{final x=await ImagePicker().pickImage(source:ImageSource.gallery,imageQuality:82,maxWidth:1600);if(x!=null)setState(()=>image=x);},icon:const Icon(Icons.image),label:Text(image?.name??'Choose product image')),
     if(widget.product?['image_url']!=null)TextButton(onPressed:()=>setState(()=>remove=true),child:const Text('Remove current image')),
     const SizedBox(height:10),FilledButton(onPressed:saving?null:save,child:Text(saving?'Saving…':'Save product')),
