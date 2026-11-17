@@ -37,7 +37,6 @@ class _AdminStatCard extends StatelessWidget {
       Text(label,maxLines:1,overflow:TextOverflow.ellipsis,style:const TextStyle(fontSize:10,color:muted,fontWeight:FontWeight.w600)),
     ])),
   ])));
-  }
 }
 
 class _AdminStatusTag extends StatelessWidget {
@@ -141,8 +140,6 @@ class _CataloguePageState extends State<CataloguePage> {
         subtitle:Text(cat['is_active']==true?'Shown in the customer catalogue':'Hidden from the customer catalogue',style:const TextStyle(fontSize:11,color:muted)),
       ))),
     ]));
-  }
-  }
   }
 }
 
@@ -320,8 +317,6 @@ class _OrdersPageState extends State<OrdersPage>{
       if(list.isEmpty)empty('No orders match the selected filters.'),
     ]));
   }
-  }
-  }
 }
 
 class PacksPage extends StatefulWidget{const PacksPage({super.key});@override State<PacksPage> createState()=>_PacksPageState();}
@@ -447,8 +442,6 @@ class _PacksPageState extends State<PacksPage>{
       if(products.isEmpty)empty('Add products before configuring pack sizes.'),
     ]));
   }
-  }
-  }
 }
 
 class ShopPage extends StatefulWidget{const ShopPage({super.key});@override State<ShopPage> createState()=>_ShopPageState();}
@@ -494,8 +487,6 @@ class _ShopPageState extends State<ShopPage>{
       const Card(child:ListTile(leading:Icon(Icons.shield_outlined,color:green),title:Text('Existing orders are safe'),subtitle:Text('Closing the shop or pausing checkout only affects new orders. Existing customer orders are not changed.'))),
     ]));
   }
-}
-
 }
 
 class DeliveryPage extends StatelessWidget{
