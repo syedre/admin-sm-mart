@@ -31,15 +31,11 @@ class _MobileDeliveryPageState extends State<MobileDeliveryPage> {
   Future<void> _load() async {
     if (mounted) setState(() { _loading = true; _error = null; });
     try {
-      final response = await Future.wait([
-        _api.load(),
-        Supabase.instance.client.from('orders')
-            .select('id,order_number,status,total_cents,created_at,delivery_date,address_label,address_line,apartment,landmark,city,state,postal_code')
-            .eq('status', 'out_for_delivery')
-            .order('created_at', ascending: false),
-      ]);
-      final delivery = response[0] as Map<String, dynamic>;
-      final orders = response[1] as List<dynamic>;
+      final delivery = await _api.load();
+      final orders = await Supabase.instance.client.from('orders')
+          .select('id,order_number,status,total_cents,created_at,delivery_date,address_label,address_line,apartment,landmark,city,state,postal_code')
+          .eq('status', 'out_for_delivery')
+          .order('created_at', ascending: false);
       _partners = List<Map<String, dynamic>>.from(delivery['partners'] ?? const []);
       _assignments = Map<String, dynamic>.from(delivery['assignments'] ?? const {});
       _orders = orders.map((row) => Map<String, dynamic>.from(row as Map)).toList();
@@ -59,9 +55,11 @@ class _MobileDeliveryPageState extends State<MobileDeliveryPage> {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Delivery partner assigned.')));
       await _load();
     } catch (error) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString()), backgroundColor: Colors.red),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error.toString()), backgroundColor: Colors.red),
+        );
+      }
     } finally {
       if (mounted) setState(() => _busyOrders.remove(id));
     }
@@ -170,7 +168,7 @@ class _MobileDeliveryPageState extends State<MobileDeliveryPage> {
                 const Text('Not assigned yet', style: TextStyle(color: _deliveryMuted, fontSize: 12)),
               const SizedBox(height: 8),
               DropdownButtonFormField<String>(
-                value: selected,
+                initialValue: selected,
                 isExpanded: true,
                 decoration: const InputDecoration(labelText: 'Select delivery partner', isDense: true),
                 items: _partners.map((p) => DropdownMenuItem<String>(
