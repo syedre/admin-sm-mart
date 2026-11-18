@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../app.dart';
 import 'admin_features.dart';
 import 'mobile_delivery_page.dart';
+import 'theme_settings_page.dart';
 import '../services/admin_push_notifications.dart';
 
 class AdminShell extends StatefulWidget {
@@ -60,6 +61,11 @@ class _AdminShellState extends State<AdminShell> {
         ]),
         actions: [
           IconButton(tooltip: 'Refresh', onPressed: () => setState(() => _ordersRefreshKey++), icon: const Icon(Icons.refresh)),
+          IconButton(
+            tooltip: 'Customer app theme',
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ThemeSettingsPage())),
+            icon: const Icon(Icons.palette_outlined),
+          ),
           IconButton(
             tooltip: 'Sign out',
             onPressed: () async {
