@@ -1,4 +1,5 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 const _defaultTheme = <String, String>{
@@ -105,6 +106,11 @@ class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
   final _fields = <String, TextEditingController>{};
   String _preset = 'Premium Fresh Market';
   String _festivalEffect = '';
+  String _headerImageUrl = '';
+  String _headerStyle = 'gradient';
+  String _headerImagePosition = 'center';
+  double _headerOverlayOpacity = 0.48;
+  bool _uploadingHeader = false;
   bool _loading = true;
   bool _saving = false;
   String? _error;
@@ -162,6 +168,10 @@ class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
           if (value != null && value.isNotEmpty) _fields[key]!.text = value;
         }
         _festivalEffect = config['festival_effect']?.toString() ?? '';
+        _headerImageUrl = config['header_image_url']?.toString() ?? '';
+        _headerStyle = config['header_style']?.toString() ?? 'gradient';
+        _headerImagePosition = config['header_image_position']?.toString() ?? 'center';
+        _headerOverlayOpacity = (double.tryParse(config['header_overlay_opacity']?.toString() ?? '') ?? 0.48).clamp(0.0, 0.85);
         final name = config['theme_name']?.toString();
         if (name != null && _presets.containsKey(name)) _preset = name;
       }
@@ -183,6 +193,49 @@ class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
     });
   }
 
+
+  Future<void> _pickHeaderImage() async {
+    final picked = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 84,
+      maxWidth: 1800,
+    );
+    if (picked == null || !mounted) return;
+
+    setState(() => _uploadingHeader = true);
+    try {
+      final bytes = await picked.readAsBytes();
+      final name = picked.name.toLowerCase();
+      final extension = name.endsWith('.png') ? 'png' : 'jpg';
+      final contentType = extension == 'png' ? 'image/png' : 'image/jpeg';
+      final path = 'theme/header-${DateTime.now().millisecondsSinceEpoch}.$extension';
+      final storage = Supabase.instance.client.storage.from('royalwood');
+      await storage.uploadBinary(
+        path,
+        bytes,
+        fileOptions: FileOptions(contentType: contentType, upsert: true),
+      );
+      final url = storage.getPublicUrl(path);
+      if (mounted) {
+        setState(() {
+          _headerImageUrl = url;
+          _headerStyle = 'image';
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Header image uploaded. Publish the theme to apply it.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Header image upload failed: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _uploadingHeader = false);
+    }
+  }
+
   Future<void> _save() async {
     for (final key in _labels.keys) {
       final raw = _fields[key]!.text.trim().replaceFirst('#', '');
@@ -200,6 +253,10 @@ class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
         'version': 1,
         'theme_name': _preset,
         'festival_effect': _festivalEffect,
+        'header_image_url': _headerImageUrl,
+        'header_style': _headerStyle,
+        'header_image_position': _headerImagePosition,
+        'header_overlay_opacity': _headerOverlayOpacity,
         for (final key in _labels.keys)
           key: '#${_fields[key]!.text.trim().replaceFirst('#', '').toUpperCase()}',
         'published_at': DateTime.now().toUtc().toIso8601String(),
@@ -296,6 +353,95 @@ class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
                 : 'Header animation: ${_festivalEffect[0].toUpperCase()}${_festivalEffect.substring(1)}',
             style: const TextStyle(color: Color(0xFF68736B), fontSize: 12, fontWeight: FontWeight.w600),
           ),
+
+          const SizedBox(height: 20),
+          const Text('Home header background', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: SizedBox(
+              height: 148,
+              width: double.infinity,
+              child: Stack(fit: StackFit.expand, children: [
+                if (_headerStyle == 'image' && _headerImageUrl.isNotEmpty)
+                  Image.network(
+                    _headerImageUrl,
+                    fit: BoxFit.cover,
+                    alignment: _headerImagePosition == 'top'
+                        ? Alignment.topCenter
+                        : _headerImagePosition == 'bottom'
+                            ? Alignment.bottomCenter
+                            : Alignment.center,
+                    errorBuilder: (_, __, ___) => Container(color: previewPrimary),
+                  )
+                else
+                  Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(colors: [previewPrimary, previewPrimary.withValues(alpha: .72)]),
+                    ),
+                  ),
+                Container(color: previewPrimary.withValues(alpha: _headerOverlayOpacity)),
+                const Positioned(
+                  left: 16,
+                  bottom: 16,
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('SM mart', style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w600)),
+                    SizedBox(height: 5),
+                    Text('Fresh groceries, delivered.', style: TextStyle(color: Colors.white, fontSize: 19, fontWeight: FontWeight.w900)),
+                  ]),
+                ),
+              ]),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Wrap(spacing: 10, runSpacing: 8, children: [
+            OutlinedButton.icon(
+              onPressed: _uploadingHeader ? null : _pickHeaderImage,
+              icon: _uploadingHeader
+                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.photo_library_outlined),
+              label: Text(_uploadingHeader ? 'Uploading…' : 'Upload image'),
+            ),
+            if (_headerImageUrl.isNotEmpty)
+              TextButton.icon(
+                onPressed: () => setState(() {
+                  _headerImageUrl = '';
+                  _headerStyle = 'gradient';
+                }),
+                icon: const Icon(Icons.delete_outline_rounded),
+                label: const Text('Remove image'),
+              ),
+          ]),
+          DropdownButtonFormField<String>(
+            initialValue: _headerStyle,
+            decoration: const InputDecoration(labelText: 'Header background style', border: OutlineInputBorder()),
+            items: const [
+              DropdownMenuItem(value: 'image', child: Text('Uploaded image')),
+              DropdownMenuItem(value: 'gradient', child: Text('Dynamic brand gradient')),
+              DropdownMenuItem(value: 'solid', child: Text('Solid brand colour')),
+            ],
+            onChanged: (value) => setState(() => _headerStyle = value ?? 'gradient'),
+          ),
+          const SizedBox(height: 10),
+          Text('Colour overlay · ${(_headerOverlayOpacity * 100).round()}%', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+          Slider(
+            value: _headerOverlayOpacity,
+            min: 0,
+            max: 0.85,
+            divisions: 17,
+            onChanged: (value) => setState(() => _headerOverlayOpacity = value),
+          ),
+          DropdownButtonFormField<String>(
+            initialValue: _headerImagePosition,
+            decoration: const InputDecoration(labelText: 'Image position', border: OutlineInputBorder()),
+            items: const [
+              DropdownMenuItem(value: 'center', child: Text('Center')),
+              DropdownMenuItem(value: 'top', child: Text('Top')),
+              DropdownMenuItem(value: 'bottom', child: Text('Bottom')),
+            ],
+            onChanged: (value) => setState(() => _headerImagePosition = value ?? 'center'),
+          ),
+
           const SizedBox(height: 20),
           const Text('Customize colours', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
           const SizedBox(height: 5),
