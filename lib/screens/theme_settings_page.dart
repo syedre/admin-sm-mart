@@ -171,7 +171,7 @@ class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
         _headerImageUrl = config['header_image_url']?.toString() ?? '';
         _headerStyle = config['header_style']?.toString() ?? 'gradient';
         _headerImagePosition = config['header_image_position']?.toString() ?? 'center';
-        _headerOverlayOpacity = (double.tryParse(config['header_overlay_opacity']?.toString() ?? '') ?? 0.48).clamp(0.0, 0.85);
+        _headerOverlayOpacity = (double.tryParse(config['header_overlay_opacity']?.toString() ?? '') ?? 0.48).clamp(0.0, 0.85).toDouble();
         final name = config['theme_name']?.toString();
         if (name != null && _presets.containsKey(name)) _preset = name;
       }
