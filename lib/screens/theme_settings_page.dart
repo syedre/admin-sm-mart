@@ -10,6 +10,7 @@ const _defaultTheme = <String, String>{
   'muted': '#78867B',
   'border': '#E5EBE2',
   'accent': '#A6C96A',
+  'festival_effect': '',
 };
 
 const _presets = <String, Map<String, String>>{
@@ -23,6 +24,7 @@ const _presets = <String, Map<String, String>>{
     'muted': '#778078',
     'border': '#E8E9E4',
     'accent': '#A6C96A',
+    'festival_effect': '',
   },
   'Midnight Green': {
     'theme_name': 'Midnight Green',
@@ -33,6 +35,7 @@ const _presets = <String, Map<String, String>>{
     'muted': '#A9B8AD',
     'border': '#314238',
     'accent': '#C4E58A',
+    'festival_effect': '',
   },
   'Diwali Celebration': {
     'theme_name': 'Diwali Celebration',
@@ -43,6 +46,7 @@ const _presets = <String, Map<String, String>>{
     'muted': '#887466',
     'border': '#F0DFCA',
     'accent': '#D9A441',
+    'festival_effect': 'diwali',
   },
   'Holi Festival': {
     'theme_name': 'Holi Festival',
@@ -53,6 +57,7 @@ const _presets = <String, Map<String, String>>{
     'muted': '#887B8B',
     'border': '#EEDFEB',
     'accent': '#E59A43',
+    'festival_effect': 'holi',
   },
   'Sankranti Harvest': {
     'theme_name': 'Sankranti Harvest',
@@ -63,6 +68,7 @@ const _presets = <String, Map<String, String>>{
     'muted': '#7C806B',
     'border': '#EAE2C9',
     'accent': '#D9A52B',
+    'festival_effect': 'sankranti',
   },
   'Eid Elegance': {
     'theme_name': 'Eid Elegance',
@@ -73,6 +79,7 @@ const _presets = <String, Map<String, String>>{
     'muted': '#748780',
     'border': '#DCEAE4',
     'accent': '#C6A45B',
+    'festival_effect': 'eid',
   },
   'Christmas Fresh': {
     'theme_name': 'Christmas Fresh',
@@ -83,6 +90,7 @@ const _presets = <String, Map<String, String>>{
     'muted': '#887477',
     'border': '#EFDFDF',
     'accent': '#3D8053',
+    'festival_effect': 'christmas',
   },
 };
 
@@ -96,6 +104,7 @@ class ThemeSettingsPage extends StatefulWidget {
 class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
   final _fields = <String, TextEditingController>{};
   String _preset = 'Premium Fresh Market';
+  String _festivalEffect = '';
   bool _loading = true;
   bool _saving = false;
   String? _error;
@@ -152,6 +161,7 @@ class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
           final value = config[key]?.toString();
           if (value != null && value.isNotEmpty) _fields[key]!.text = value;
         }
+        _festivalEffect = config['festival_effect']?.toString() ?? '';
         final name = config['theme_name']?.toString();
         if (name != null && _presets.containsKey(name)) _preset = name;
       }
@@ -166,6 +176,7 @@ class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
     final preset = _presets[name]!;
     setState(() {
       _preset = name;
+      _festivalEffect = preset['festival_effect'] ?? '';
       for (final key in _labels.keys) {
         _fields[key]!.text = preset[key]!;
       }
@@ -188,6 +199,7 @@ class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
       final config = <String, dynamic>{
         'version': 1,
         'theme_name': _preset,
+        'festival_effect': _festivalEffect,
         for (final key in _labels.keys)
           key: '#${_fields[key]!.text.trim().replaceFirst('#', '').toUpperCase()}',
         'published_at': DateTime.now().toUtc().toIso8601String(),
@@ -276,6 +288,13 @@ class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
             decoration: const InputDecoration(border: OutlineInputBorder(), prefixIcon: Icon(Icons.color_lens_outlined)),
             items: _presets.keys.map((name) => DropdownMenuItem(value: name, child: Text(name))).toList(),
             onChanged: _applyPreset,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _festivalEffect.isEmpty
+                ? 'Header animation: None'
+                : 'Header animation: ${_festivalEffect[0].toUpperCase()}${_festivalEffect.substring(1)}',
+            style: const TextStyle(color: Color(0xFF68736B), fontSize: 12, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 20),
           const Text('Customize colours', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
