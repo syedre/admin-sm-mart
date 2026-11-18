@@ -104,6 +104,7 @@ class ThemeSettingsPage extends StatefulWidget {
 
 class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
   final _fields = <String, TextEditingController>{};
+  final _headerImageUrlController = TextEditingController();
   String _preset = 'Premium Fresh Market';
   String _festivalEffect = '';
   String _headerImageUrl = '';
@@ -139,6 +140,7 @@ class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
     for (final controller in _fields.values) {
       controller.dispose();
     }
+    _headerImageUrlController.dispose();
     super.dispose();
   }
 
@@ -169,6 +171,7 @@ class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
         }
         _festivalEffect = config['festival_effect']?.toString() ?? '';
         _headerImageUrl = config['header_image_url']?.toString() ?? '';
+        _headerImageUrlController.text = _headerImageUrl;
         _headerStyle = config['header_style']?.toString() ?? 'gradient';
         _headerImagePosition = config['header_image_position']?.toString() ?? 'center';
         _headerOverlayOpacity = (double.tryParse(config['header_overlay_opacity']?.toString() ?? '') ?? 0.48).clamp(0.0, 0.85).toDouble();
@@ -219,6 +222,7 @@ class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
       if (mounted) {
         setState(() {
           _headerImageUrl = url;
+          _headerImageUrlController.text = url;
           _headerStyle = 'image';
         });
         ScaffoldMessenger.of(context).showSnackBar(
@@ -394,6 +398,27 @@ class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
             ),
           ),
           const SizedBox(height: 10),
+          TextField(
+            controller: _headerImageUrlController,
+            keyboardType: TextInputType.url,
+            textInputAction: TextInputAction.done,
+            decoration: const InputDecoration(
+              labelText: 'Header image URL',
+              hintText: 'Paste a public image URL (https://...)',
+              helperText: 'Use a publicly accessible image URL, or upload an image above.',
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.link_rounded),
+            ),
+            onChanged: (value) {
+              _headerImageUrl = value.trim();
+              if (_headerImageUrl.isNotEmpty) _headerStyle = 'image';
+            },
+            onSubmitted: (value) => setState(() {
+              _headerImageUrl = value.trim();
+              if (_headerImageUrl.isNotEmpty) _headerStyle = 'image';
+            }),
+          ),
+          const SizedBox(height: 10),
           Wrap(spacing: 10, runSpacing: 8, children: [
             OutlinedButton.icon(
               onPressed: _uploadingHeader ? null : _pickHeaderImage,
@@ -406,6 +431,7 @@ class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
               TextButton.icon(
                 onPressed: () => setState(() {
                   _headerImageUrl = '';
+                  _headerImageUrlController.clear();
                   _headerStyle = 'gradient';
                 }),
                 icon: const Icon(Icons.delete_outline_rounded),
