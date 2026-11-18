@@ -142,13 +142,26 @@ class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
           key: '#${_fields[key]!.text.trim().replaceFirst('#', '').toUpperCase()}',
         'published_at': DateTime.now().toUtc().toIso8601String(),
       };
-      await Supabase.instance.client
+      final savedRow = await Supabase.instance.client
           .from('shop_settings')
           .update({
             'theme_config': config,
             'updated_at': DateTime.now().toUtc().toIso8601String(),
           })
-          .eq('id', 1);
+          .eq('id', 1)
+          .select('id, theme_config')
+          .maybeSingle();
+
+      // PostgREST UPDATE can return no error when RLS filters the row or
+      // when the id does not match. Never report a publish as successful
+      // unless Supabase returns the row that was actually updated.
+      if (savedRow == null || savedRow['theme_config'] is! Map) {
+        throw Exception(
+          'No shop_settings row was updated. Check that the settings row has id = 1 '
+          'and that the admin role has an UPDATE policy for shop_settings.',
+        );
+      }
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Customer app theme published successfully.')),
